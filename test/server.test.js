@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { createApp, validateManifest } from '../server.js';
+import { createApp, validateManifest } from '../app.js';
 
 const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const key = publicKey.export({ type: 'spki', format: 'pem' });

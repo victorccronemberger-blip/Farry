@@ -1,7 +1,7 @@
 import { createHash, sign } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readFile, stat, writeFile } from 'node:fs/promises';
-import { validateManifest } from '../server.js';
+import { validateManifest } from '../app.js';
 const version = process.argv[2];
 async function artifact(name) {
   const file = new URL('../dist/' + name, import.meta.url), hash = createHash('sha256');

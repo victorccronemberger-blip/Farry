@@ -37,12 +37,22 @@ def main():
     parser.add_argument('--inspect', action='store_true')
     parser.add_argument('--version')
     parser.add_argument('--publish', action='store_true')
+    parser.add_argument('--publish-existing', action='store_true')
+    parser.add_argument('--status', action='store_true')
     args = parser.parse_args()
     if args.inspect:
         user = request('/user')
         repo = request('/repos/' + REPOSITORY)
         print(json.dumps({'login': user['login'], 'id': user['id'], 'private': repo['private'],
                           'can_push': repo.get('permissions', {}).get('push', False)}))
+        return
+    if args.status:
+        releases = request('/repos/' + REPOSITORY + '/releases?per_page=10')
+        runs = request('/repos/' + REPOSITORY + '/actions/runs?per_page=4')
+        print(json.dumps({'releases': [{'id': r['id'], 'tag': r['tag_name'], 'draft': r['draft'],
+            'assets': [{'name': a['name'], 'state': a['state'], 'size': a['size']} for a in r['assets']]}
+            for r in releases], 'checks': [{'commit': r['head_sha'][:8], 'status': r['status'],
+            'conclusion': r['conclusion']} for r in runs['workflow_runs']]}))
         return
     if not args.version:
         parser.error('--version required')
@@ -53,6 +63,23 @@ def main():
     paths = [root / 'dist' / name for name in ('Farry-windows-x64.zip', 'FarrySetup.exe', 'release.json', 'release.json.sig')]
     if not all(path.is_file() for path in paths):
         raise RuntimeError('Build and sign all four artifacts before creating a release')
+    if args.publish_existing:
+        import hashlib
+        matches = [r for r in request('/repos/' + REPOSITORY + '/releases?per_page=100')
+                   if r['tag_name'] == 'v' + args.version and r['draft']]
+        if len(matches) != 1:
+            raise RuntimeError('Expected exactly one matching draft release')
+        release = matches[0]
+        for path in paths:
+            assets = [a for a in release['assets'] if a['name'] == path.name and a['state'] == 'uploaded']
+            with path.open('rb') as source:
+                digest = 'sha256:' + hashlib.file_digest(source, 'sha256').hexdigest()
+            if len(assets) != 1 or assets[0].get('digest') != digest or assets[0]['size'] != path.stat().st_size:
+                raise RuntimeError('Remote artifact not verified: ' + path.name)
+        request('/repos/' + REPOSITORY + '/releases/' + str(release['id']), method='PATCH',
+                data=json.dumps({'draft': False}).encode())
+        print('Published:', release['html_url'])
+        return
     # A draft stays invisible to clients until all uploads succeed.
     result = request('/repos/' + REPOSITORY + '/releases', method='POST', data=json.dumps({
         'tag_name': 'v' + args.version, 'name': 'QMoney ' + args.version, 'draft': True,

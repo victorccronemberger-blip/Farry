@@ -1,6 +1,11 @@
 node_modules/
-dist/
-.env*
+.env
+.env.*
 !.env.example
-*.tsbuildinfo
-.DS_Store
+.template-backup/
+dist/
+work/
+secrets/
+*.log
+*.pem
+!keys/update-public.pem

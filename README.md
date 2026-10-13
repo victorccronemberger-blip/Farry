@@ -1,131 +1,49 @@
-# Callout
+# Farry
 
-A polished service-business website for an independent plumber or electrician.
+Servidor de versões e distribuição Windows do QMoney. Substitui integralmente o modelo Callout.
 
-## Overview
+## Estrutura
 
-Callout presents the fictional Copper & Co. Plumbing brand through a distinctive
-one-page experience. It is designed for a one-van tradesperson who needs a clear,
-credible online presence without complicated administration.
+- `server.js`, `public/`: servidor Express e página de atualizações.
+- `launcher/`: launcher e instalador Windows (.NET Framework 4.8, x64).
+- `keys/update-public.pem`: chave pública para verificar publicações.
+- `client/`: snapshot do projeto Finally em uso; contas, tokens, mídias, builds e ambientes locais ficam fora do Git.
+- `tools/`: compilação, empacotamento, assinatura e publicação.
 
-Visitors can understand available services, see emergency hours, check whether
-their street is covered, and call the business from prominent mobile-friendly
-actions.
+O criador de contas foi preservado conforme a decisão do proprietário. O aplicativo instalado continua funcionando independentemente deste servidor.
 
-## Features
+## Hostinger
 
-- Responsive service-business landing page
-- Live emergency availability treatment
-- Interactive street and postcode coverage form
-- Click-to-call actions throughout
-- Service, working-hours, coverage, and work-gallery sections
-- Accessible navigation, labels, status messages, and semantic structure
-- Original pipe, wrench, and neighbourhood-map illustrations
-- Mobile, tablet, and desktop layouts
+Configuração: Express, Node 22.x, npm, branch `main`, raiz `./`, entrada `server.js`. Comando de início: `npm start`. Não requer compilação de frontend; `npm run build` valida a sintaxe.
 
-## Tech stack
+Defina `GITHUB_TOKEN` nas variáveis de ambiente da Hostinger usando um token limitado ao repositório Farry, com `Contents: Read`. `GITHUB_REPOSITORY` é opcional e assume `victorccronemberger-blip/Farry`. O token nunca é enviado ao launcher. `PORT` é fornecida pela hospedagem.
 
-- **Language:** TypeScript
-- **Framework:** React
-- **Build tool:** Vite
-- **Styling:** Layered plain CSS
-- **Linting:** ESLint
+`GET /health` mostra se o servidor está ativo e se há credencial configurada. `GET /api/releases/latest` entrega o manifesto assinado da última release estável completa. Sem release, retorna 404; sem configuração, retorna 503. A página mostra esse estado honestamente.
 
-## Getting started
+Os downloads são públicos para os usuários do aplicativo; somente os quatro artefatos de uma release publicada e verificada podem ser acessados. O código do repositório e suas credenciais permanecem privados. Não coloque dados pessoais ou segredos nos artefatos.
 
-### Prerequisites
+## Instalação e atualização
 
-- Node.js 22 or newer
-- npm
+Execute `FarrySetup.exe`. Ele instala `FarryLauncher.exe` em `%LOCALAPPDATA%\Farry`, cria atalhos no desktop e menu Iniciar e abre o launcher. O download da primeira versão é explícito. Não requer administrador.
 
-### Installation
+O launcher consulta atualizações ao abrir. Instalações ficam em `versions/<versão>`. Cada pacote tem SHA-256 e manifesto assinado RSA/SHA-256 com chave pública fixada no launcher. ZIPs com caminhos externos, links ou nomes duplicados são recusados. A versão instalada não é substituída durante o download.
 
-```bash
-npm install
-```
+A nova versão precisa confirmar prontidão do motor antes de atualizar atomicamente `current.txt`. A versão anterior e `previous.txt` permanecem disponíveis. Se o servidor estiver indisponível, `Abrir QMoney` continua funcionando para uma instalação existente. Nunca altera `%LOCALAPPDATA%\QMoney`, suas contas ou sua biblioteca.
 
-### Development
+Para remover apenas o launcher, feche-o e remova os atalhos e `%LOCALAPPDATA%\Farry`. Isso não remove os dados do QMoney. Os executáveis ainda não têm certificado Authenticode comercial; assinatura das atualizações e reputação do Windows são verificações diferentes.
 
-```bash
-npm run dev
-```
+## Publicar uma versão
 
-Open the local URL printed by Vite.
+1. Faça commit do código aprovado. Mantenha o snapshot `client/` coerente com o pacote.
+2. `node tools/init-signing-key.mjs` cria a chave apenas se não existir. Guarde `secrets/update-private.pem` em backup privado; nunca publique essa chave. Não regenere a chave após distribuir launchers sem planejar a migração de confiança.
+3. `./tools/test-launcher.ps1` e `./tools/build-launcher.ps1`.
+4. Instale PyInstaller em `work/build-dependencies` usando o Python do projeto, e execute `./tools/package-client.ps1 -ProjectRoot <pasta-Finally-testada>`. O script empacota o motor, copia o aplicativo validado e executa a verificação em perfis temporários antes de assinar. Não instala no perfil do usuário.
+5. `python tools/github_release.py --version 1.0.63 --publish`. Usa a autenticação existente do Git, cria uma release em rascunho, envia quatro artefatos e só então publica. Se um upload falhar, o rascunho não será oferecido aos clientes; remova ou conclua esse rascunho antes de repetir.
 
-## Available scripts
+Use uma versão crescente para cada pacote novo. Não altere os artefatos de uma versão já publicada.
 
-- `npm run dev` — start the local development server
-- `npm run build` — type-check and create a production build
-- `npm run lint` — run ESLint
-- `npm run preview` — preview the production build locally
+## Validação
 
-## Project structure
+`npm ci --ignore-scripts`, `npm test`, `npm run build` (Node 22). `./tools/test-launcher.ps1` valida assinatura e extração sem iniciar o aplicativo ou acessar contas reais. A CI usa uma chave efêmera somente nos testes, nunca para distribuir versões.
 
-```text
-src/
-├── assets/
-│   └── images/
-├── components/
-├── constants/
-├── icons/
-├── styles/
-├── types/
-├── App.tsx
-└── main.tsx
-```
-
-Components contain focused page sections. Business content stays separate from
-rendering, while foundation, gallery, desktop, and responsive styles are
-composed through `src/styles/index.css`.
-
-## Personalizing
-
-### Content and business data
-
-Edit `src/constants/business.ts` to replace the brand name, phone number,
-service area, navigation, services, hours, and form messages. Coverage checks
-use the editable `postcodePrefixes` and `areaNames` lists. Unmatched entries
-receive an honest invitation to call rather than a false coverage confirmation.
-
-### Branding and styles
-
-Edit `src/styles/foundation.css` for colors and typography,
-`src/styles.css` for core section layouts, and
-`src/styles/responsive.css` for mobile behavior.
-
-### Images
-
-Replace files in `src/assets/images/` while keeping their imports in
-`src/components/WorkGallery.tsx`. Similar landscape and portrait crops preserve
-the current layout. Current photos were sourced from Pexels:
-
-- Pipe installation — Anıl Karakaya
-- Boiler servicing — Heiko Ruth
-
-### Routes and features
-
-This template uses one page. `src/App.tsx` controls section order;
-`src/components/` contains each feature and interaction.
-
-### Environment variables
-
-This project does not require environment variables.
-
-## Production build
-
-```bash
-npm run build
-npm run preview
-```
-
-Production files are written to `dist/`.
-
-## License
-
-MIT. See `LICENSE`; reuse and adapt this template in personal or commercial
-projects.
-
-## Screenshots
-
-- Thumbnail: `preview/callout-thumbnail.png`
-- Full page: `preview/callout-homepage.png`
+Limite: a validação local não substitui teste de instalação completa em outro Windows, nem garante disponibilidade de dispositivos USB, credenciais ou provedores externos.

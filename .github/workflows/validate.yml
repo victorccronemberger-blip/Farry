@@ -1,0 +1,29 @@
+name: Validate Farry
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm test
+  launcher:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Ephemeral fixture key, only in this disposable test checkout.
+      - run: node tools/init-signing-key.mjs
+      - run: ./tools/test-launcher.ps1
+        shell: pwsh
+      - run: ./tools/build-launcher.ps1
+        shell: pwsh

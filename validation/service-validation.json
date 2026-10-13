@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "checks": [
+    "fresh_installation",
+    "restart_preserves_credentials",
+    "separate_customer_roots",
+    "local_api_authentication",
+    "empty_recovery",
+    "no_campaign_started",
+    "original_library_index_and_fts",
+    "original_duration_and_unknown_sensor_state",
+    "prepared_library_inventory",
+    "prepared_library_authentication",
+    "general_local_media_inventory",
+    "owned_process_tree_shutdown",
+    "nymeria_sdk_core_device_time",
+    "nymeria_metadata_only_not_ready",
+    "nymeria_source_catalog_and_packaged_current_tasks",
+    "nymeria_source_catalog_authentication",
+    "nymeria_manifest_import_without_external_python_or_sdk",
+    "full_campaign_reset_preserves_credentials_and_library",
+    "native_private_manifest_bootstrap_in_relocated_library",
+    "native_catalog_setup_acquires_no_vrs_or_imu",
+    "public_install_missing_ego_annotations_cannot_start",
+    "public_install_legacy_hours_do_not_gate_campaign"
+  ]
+}

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { createApp, validateManifest } from '../app.js';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 
 const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const key = publicKey.export({ type: 'spki', format: 'pem' });
@@ -94,4 +96,21 @@ test('manifest cannot select another package or lie about its version', () => {
   for (const change of [{ version: '9.0.0' }, { platform: 'linux' }, { package: { ...manifest.package, name: '../file' } },
     { package: { ...manifest.package, size: -1 } }])
     assert.throws(() => validateManifest({ ...manifest, ...change }, 'v1.0.63'));
+});
+test('Hostinger entry starts listening when imported by a hosting wrapper', { timeout: 10000 }, async t => {
+  const reservation = createServer().listen(0, '127.0.0.1');
+  await new Promise(resolve => reservation.once('listening', resolve));
+  const port = reservation.address().port;
+  await new Promise(resolve => reservation.close(resolve));
+  const child = spawn(process.execPath, ['--input-type=module', '-e', "import('./server.js')"], {
+    cwd: new URL('..', import.meta.url), env: { ...process.env, PORT: String(port), GITHUB_TOKEN: '' },
+    windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(() => child.kill());
+  await new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', code => reject(new Error(`Entry exited before listen: ${code}`)));
+    child.stdout.on('data', chunk => { if (chunk.toString().includes('Farry listening')) resolve(); });
+  });
+  assert.equal((await fetch(`http://127.0.0.1:${port}/health`)).status, 200);
 });

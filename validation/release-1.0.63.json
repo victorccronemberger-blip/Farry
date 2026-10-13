@@ -2,7 +2,7 @@
   "live_package_range": true,
   "clean_windows_installation_tested": false,
   "live_manifest_signature": true,
-  "server_tests": 8,
+  "server_tests": 9,
   "creator_removed": false,
   "python_failures": 0,
   "live_installer_hash": true,

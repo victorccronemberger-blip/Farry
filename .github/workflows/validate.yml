@@ -17,7 +17,7 @@ jobs:
   launcher:
     runs-on: windows-latest
     env:
-      FARRY_INTERNAL_CERTIFICATE: ${{ runner.temp }}\farry-ci-codesigning.cer
+      FARRY_INTERNAL_CERTIFICATE: ${{ github.workspace }}\keys\ci-internal-codesigning.cer
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -102,7 +102,8 @@ def main():
             if len(assets) != 1 or assets[0].get('digest') != digest or assets[0]['size'] != path.stat().st_size:
                 raise RuntimeError('Remote artifact not verified: ' + path.name)
         request('/repos/' + REPOSITORY + '/releases/' + str(release['id']), method='PATCH',
-                data=json.dumps({'draft': False}).encode())
+                data=json.dumps({'draft': False, 'tag_name': 'v' + args.version,
+                                 **({'target_commitish': args.target_commit} if args.target_commit else {})}).encode())
         print('Published:', release['html_url'])
         return
     # A draft stays invisible to clients until all uploads succeed.
@@ -118,7 +119,8 @@ def main():
         print('Uploaded:', path.name)
     if args.publish:
         request('/repos/' + REPOSITORY + '/releases/' + str(result['id']), method='PATCH',
-                data=json.dumps({'draft': False}).encode())
+                data=json.dumps({'draft': False, 'tag_name': 'v' + args.version,
+                                 **({'target_commitish': args.target_commit} if args.target_commit else {})}).encode())
     print(result['html_url'])
 
 

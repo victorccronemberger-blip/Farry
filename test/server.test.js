@@ -34,7 +34,10 @@ async function serve(t, options = {}) {
 test('health and landing page work before private repository is configured', async t => {
   const base = await serve(t, { env: {} });
   assert.equal((await (await fetch(base + '/health')).json()).repository_configured, false);
-  assert.equal((await fetch(base)).status, 200);
+  const landing = await fetch(base);
+  assert.equal(landing.status, 200);
+  assert.equal(landing.headers.get('cache-control'), 'no-store');
+  assert.match(await landing.text(), /app\.js\?v=1\.0\.64/);
   const response = await fetch(base + '/api/releases/latest');
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { error: 'repository_not_configured' });

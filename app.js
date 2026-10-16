@@ -123,7 +123,12 @@ export function createApp({ env = process.env, fetchImpl = fetch, publicKey, now
     res.set({ 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${name}"` });
     await pipeline(Readable.fromWeb(response.body), res);
   });
-  app.use(express.static(fileURLToPath(new URL('./public', import.meta.url)), { dotfiles: 'deny' }));
+  app.use(express.static(fileURLToPath(new URL('./public', import.meta.url)), {
+    dotfiles: 'deny',
+    setHeaders(res, path) {
+      if (path.endsWith('index.html')) res.setHeader('Cache-Control', 'no-store');
+    },
+  }));
   app.use((_req, res) => res.status(404).json({ error: 'not_found' }));
   app.use((err, _req, res, _next) => {
     if (res.headersSent) return res.destroy();

@@ -20,3 +20,17 @@ const packageResponse = await fetch(`${base}/downloads/v${manifest.version}/${ma
 if (packageResponse.status !== 206) { await packageResponse.body?.cancel(); throw new Error('Package range not available'); }
 assert.equal(Buffer.from(await packageResponse.arrayBuffer()).toString('hex'), '504b0304');
 console.log(`Live ${manifest.version}: signed manifest, installer hash and package download passed. No executable was run.`);
+if (process.argv.includes('--full-package')) {
+  const response = await fetch(`${base}/downloads/v${manifest.version}/${manifest.package.name}`, {
+    signal: AbortSignal.timeout(300000) });
+  assert.equal(response.status, 200);
+  const hash = createHash('sha256'); let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.length;
+    assert.ok(size <= manifest.package.size, 'Remote package exceeds signed size');
+    hash.update(chunk);
+  }
+  assert.equal(size, manifest.package.size);
+  assert.equal(hash.digest('hex'), manifest.package.sha256);
+  console.log(`Live ${manifest.version}: complete ${size}-byte package matches the signed SHA-256.`);
+}

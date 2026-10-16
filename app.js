@@ -13,10 +13,15 @@ class HttpError extends Error {
 }
 export function validateManifest(value, tag) {
   if (!value || value.schema !== 1 || !TAG.test(tag) || value.version !== tag.slice(1)
+      || (value.application_version !== undefined && !TAG.test('v' + value.application_version))
       || value.platform !== 'windows-x64' || value.package?.name !== PACKAGE
       || !/^[a-f0-9]{64}$/.test(value.package?.sha256 ?? '')
       || !Number.isSafeInteger(value.package?.size) || value.package.size < 1
       || value.package.size > 8 * 1024 ** 3) throw new HttpError(502, 'invalid_release');
+  if (value.installer && (value.installer.name !== 'FarrySetup.exe'
+      || !/^[a-f0-9]{64}$/.test(value.installer.sha256 ?? '')
+      || !Number.isSafeInteger(value.installer.size) || value.installer.size < 1
+      || value.installer.size > 128 * 1024 ** 2)) throw new HttpError(502, 'invalid_release');
   return value;
 }
 export function createApp({ env = process.env, fetchImpl = fetch, publicKey, now = Date.now } = {}) {

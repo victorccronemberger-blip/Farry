@@ -7,5 +7,6 @@ dist/
 work/
 secrets/
 *.log
+__pycache__/
 *.pem
 !keys/update-public.pem

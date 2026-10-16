@@ -94,7 +94,9 @@ test('rejects arbitrary upstream redirects and sanitizes upstream errors', async
 });
 test('manifest cannot select another package or lie about its version', () => {
   for (const change of [{ version: '9.0.0' }, { platform: 'linux' }, { package: { ...manifest.package, name: '../file' } },
-    { package: { ...manifest.package, size: -1 } }])
+    { package: { ...manifest.package, size: -1 } }, { application_version: 'invalid' },
+    { installer: { name: 'another.exe', sha256: 'b'.repeat(64), size: 100 } },
+    { installer: { name: 'FarrySetup.exe', sha256: 'invalid', size: 100 } }])
     assert.throws(() => validateManifest({ ...manifest, ...change }, 'v1.0.63'));
 });
 test('Hostinger entry starts listening when imported by a hosting wrapper', { timeout: 10000 }, async t => {

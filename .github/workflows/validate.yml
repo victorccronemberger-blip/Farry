@@ -16,6 +16,8 @@ jobs:
       - run: npm test
   launcher:
     runs-on: windows-latest
+    env:
+      FARRY_INTERNAL_CERTIFICATE: ${{ runner.temp }}\farry-ci-codesigning.cer
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,7 +25,17 @@ jobs:
           node-version: 22
       # Ephemeral fixture key, only in this disposable test checkout.
       - run: node tools/init-signing-key.mjs
+      - run: ./tools/sign-internal.ps1 -Initialize
+        shell: pwsh
       - run: ./tools/test-launcher.ps1
         shell: pwsh
-      - run: ./tools/build-launcher.ps1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s test -p "test_*.py"
+      - name: Build installer without installing it
+        run: |
+          ./tools/sign-internal.ps1 -Initialize
+          ./tools/build-launcher.ps1 -Version 1.0.0 -IsccPath "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" -InternalSigning
+          ./tools/test-internal-signing.ps1 -ArtifactDirectory ./work/installer-candidate
         shell: pwsh

@@ -9,8 +9,8 @@ try {
   } else {
     const envelope = await response.json();
     const manifest = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(envelope.manifest), c => c.charCodeAt(0))));
-    document.getElementById('version').textContent = `QMoney ${manifest.version}`;
-    status.textContent = 'Atualização com integridade e assinatura verificadas pelo launcher.';
+    document.getElementById('version').textContent = `Farry ${manifest.version}`;
+    status.textContent = `QMoney ${manifest.application_version || manifest.version} · Instalador Windows e atualizações com assinatura interna e integridade verificadas.`;
     if (manifest.installer) {
       const link = document.getElementById('download');
       link.href = `/downloads/v${encodeURIComponent(manifest.version)}/FarrySetup.exe`;

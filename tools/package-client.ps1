@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ProjectRoot)
+param([Parameter(Mandatory=$true)][string]$ProjectRoot, [switch]$InternalSigning = $true)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -48,6 +48,11 @@ foreach ($part in (Get-QMoneyBrowserParts -ManifestPath $manifest -BrowserSource
 }
 & $python "$ProjectRoot\scripts\verify_packaged_service.py" "$package\runtime\QMoneyService.exe" --report "$work\service-validation.json"
 if ($LASTEXITCODE -ne 0) { throw 'Motor empacotado não passou na validação isolada.' }
+if ($InternalSigning) {
+    foreach ($binary in @('QMoney.exe', 'QMoneyUpdater.exe', 'runtime\QMoneyService.exe')) {
+        & "$PSScriptRoot\sign-internal.ps1" -Path (Join-Path $package $binary)
+    }
+}
 New-Item -ItemType Directory -Force -Path "$repo\dist" | Out-Null
 & $python -c 'import sys,zipfile,pathlib; root=pathlib.Path(sys.argv[1]); z=zipfile.ZipFile(sys.argv[2],"w",zipfile.ZIP_DEFLATED,compresslevel=6); [z.write(p,p.relative_to(root).as_posix()) for p in root.rglob("*") if p.is_file()]; z.close()' $package "$repo\dist\Farry-windows-x64.zip"
 if ($LASTEXITCODE -ne 0) { throw 'Compressão falhou.' }

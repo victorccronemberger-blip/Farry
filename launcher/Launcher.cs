@@ -25,6 +25,7 @@ internal sealed class Launcher : Form {
     internal Launcher(string installRoot) {
         root = installRoot; Directory.CreateDirectory(root);
         Text = "Farry · QMoney"; Size = new Size(620, 295); MinimumSize = Size;
+        Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         StartPosition = FormStartPosition.CenterScreen; Font = new Font("Segoe UI", 10);
         Padding = new Padding(24); BackColor = Color.FromArgb(241, 245, 241);
         var title = new Label { Text = "QMoney — versões e atualizações", Dock = DockStyle.Top, Height = 38,
@@ -40,11 +41,7 @@ internal sealed class Launcher : Form {
     }
     private void SetBusy(bool value) { busy = value; check.Enabled = !value; open.Enabled = !value && Current() != null; install.Enabled = !value && offered != null; }
     private string Current() {
-        var pointer = Path.Combine(root, "current.txt");
-        if (!File.Exists(pointer)) return null;
-        var version = File.ReadAllText(pointer).Trim();
-        if (!ReleasePolicy.VersionPattern.IsMatch(version)) return null;
-        return File.Exists(Path.Combine(root, "versions", version, "QMoney.exe")) ? version : null;
+        return ReleaseActivation.ResolveCurrent(root);
     }
     private bool AlreadyRunning() { return Process.GetProcessesByName("QMoney").Length > 0; }
     private void StartCurrent() {
@@ -68,7 +65,11 @@ internal sealed class Launcher : Form {
             var current = Current();
             if (current != null && new Version(candidate.version) <= new Version(current))
                 status.Text = "Versão " + current + " instalada. Nenhuma atualização disponível.";
-            else { offered = candidate; status.Text = "Disponível: " + candidate.version + "\n" + (candidate.notes ?? ""); }
+            else {
+                offered = candidate;
+                var appVersion = String.IsNullOrEmpty(candidate.application_version) ? "" : " · QMoney " + candidate.application_version;
+                status.Text = "Disponível: distribuição " + candidate.version + appVersion + "\n" + (candidate.notes ?? "");
+            }
         } catch (Exception ex) { ShowFailure(ex); }
         finally { SetBusy(false); }
     }
@@ -150,17 +151,30 @@ internal sealed class Launcher : Form {
             File.WriteAllText(Path.Combine(destination, "release-envelope.json"), signedEnvelope, new UTF8Encoding(false));
             var marker = Path.Combine(work, "health.txt");
             status.Text = "Abrindo a nova versão para verificar o motor local…";
-            var process = Process.Start(new ProcessStartInfo(Path.Combine(destination, "QMoney.exe"), "--update-health \"" + marker + "\"") {
-                WorkingDirectory = destination, UseShellExecute = false });
-            var until = DateTime.UtcNow.AddSeconds(120);
-            while (!File.Exists(marker) && !process.HasExited && DateTime.UtcNow < until) await Task.Delay(500);
-            if (!File.Exists(marker)) throw new IOException("A nova versão não confirmou prontidão. O atalho continua apontando para a versão anterior. Feche a janela de teste antes de abrir a anterior.");
-            var pointer = Path.Combine(root, "current.txt");
-            var next = Path.Combine(root, "current.next");
-            File.WriteAllText(next, release.version, new UTF8Encoding(false));
-            if (File.Exists(pointer)) File.Replace(next, pointer, Path.Combine(root, "previous.txt"));
-            else File.Move(next, pointer);
-            offered = null; status.Text = "QMoney " + release.version + " instalado e pronto.";
+            Process process = null;
+            try {
+                process = Process.Start(new ProcessStartInfo(Path.Combine(destination, "QMoney.exe"), "--update-health \"" + marker + "\"") {
+                    WorkingDirectory = destination, UseShellExecute = false });
+                if (process == null) throw new IOException("Não foi possível iniciar a verificação da nova versão.");
+                var until = DateTime.UtcNow.AddSeconds(120);
+                while (!ReleaseActivation.IsHealthMarkerValid(marker) && !process.HasExited && DateTime.UtcNow < until)
+                    await Task.Delay(500);
+                var ready = ReleaseActivation.IsHealthMarkerValid(marker);
+                if (!ready && !process.HasExited) {
+                    // Only ask the process started by this attempt to close normally.
+                    // Its normal shutdown owns draining work and releasing the single-instance endpoint.
+                    process.CloseMainWindow();
+                    var closed = await Task.Run(() => process.WaitForExit(30000));
+                    if (!closed)
+                        throw new IOException("A nova versão não confirmou prontidão e ainda está encerrando. Feche sua janela antes de abrir a versão anterior; o atalho da versão anterior foi preservado.");
+                }
+                ReleaseActivation.Activate(root, release.version, ready);
+            } finally {
+                if (process != null) process.Dispose();
+            }
+            offered = null;
+            var installedAppVersion = String.IsNullOrEmpty(release.application_version) ? "" : " (QMoney " + release.application_version + ")";
+            status.Text = "Distribuição " + release.version + installedAppVersion + " instalada e pronta.";
         } catch (Exception ex) { ShowFailure(ex); }
         finally {
             var prefix = Path.GetFullPath(Path.Combine(root, "staging")) + Path.DirectorySeparatorChar;

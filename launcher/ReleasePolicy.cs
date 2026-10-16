@@ -34,6 +34,7 @@ internal static class ReleasePolicy {
     internal static void Validate(Manifest value) {
         if (value == null || value.schema != 1 || value.platform != "windows-x64"
             || !VersionPattern.IsMatch(value.version ?? "") || value.package == null
+            || (value.application_version != null && !VersionPattern.IsMatch(value.application_version))
             || value.package.name != "Farry-windows-x64.zip"
             || !Regex.IsMatch(value.package.sha256 ?? "", "^[a-f0-9]{64}$")
             || value.package.size < 1 || value.package.size > 8L * 1024 * 1024 * 1024)
@@ -76,6 +77,7 @@ internal sealed class Envelope { public string manifest { get; set; } public str
 internal sealed class Artifact { public string name { get; set; } public string sha256 { get; set; } public long size { get; set; } }
 internal sealed class Manifest {
     public int schema { get; set; } public string version { get; set; }
+    public string application_version { get; set; }
     public string platform { get; set; } public string notes { get; set; } public Artifact package { get; set; }
 }
 

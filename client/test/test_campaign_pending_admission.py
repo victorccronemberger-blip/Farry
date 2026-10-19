@@ -5,10 +5,12 @@ from unittest.mock import patch
 
 from moneymin import appcheck, campaign, recovery, upload
 import test_campaign_end_to_end as campaign_fixtures
+from auth_fixtures import configure_app_check
 
 
 class PendingCampaignAdmissionTests(unittest.TestCase):
     def setUp(self):
+        configure_app_check(self)
         fixture = campaign_fixtures.CampaignEndToEndTests('test_success_matches_polling_and_persisted_history')
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)

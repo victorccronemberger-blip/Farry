@@ -43,6 +43,11 @@ def friendly_campaign_error(value: Any) -> str:
     text = str(value or "").strip().lower()
     if not text:
         return "O QMoney não conseguiu concluir esta etapa. Tente novamente."
+    if "app check indisponível" in text:
+        return ("App Check indisponível. A autenticação necessária ao envio "
+                "não estava disponível; isso não indica falha de preparo do vídeo. "
+                "Resolva a disponibilidade do App Check antes de retomar. "
+                "A mídia e os registros foram preservados.")
     app_check_rejected = (getattr(value, "blocked_reason", None) == "app_check"
                           or "[bloqueio: app_check]" in text)
     app_check_guidance = (
@@ -98,8 +103,13 @@ def friendly_campaign_error(value: Any) -> str:
             or "narração" in text or "narracao" in text):
         return ("A seleção deste trecho não confere com o catálogo do Ego4D. "
                 "O trecho foi recusado antes do envio.")
-    if "acesso negado ao ego4d" in text or "accessdenied" in text:
-        return "A licença Ego4D não autorizou este arquivo. O trecho foi recusado antes do envio."
+    if "acesso negado ao ego4d" in text or ("ego4d" in text and "accessdenied" in text):
+        return ("O armazenamento do Ego4D recusou o acesso ao arquivo. "
+                "Verifique as credenciais AWS e as permissões na aba Integrações. "
+                "Essa resposta, isoladamente, não confirma um problema de licença.")
+    if "accessdenied" in text:
+        return ("O serviço recusou o acesso ao recurso. "
+                "Confira as credenciais e permissões do serviço indicado no Histórico.")
     if any(term in text for term in ("disabled", "desativad", "blocked account")):
         return "O serviço recusou a operação. Confira o diagnóstico em Contas; uma mensagem de envio isolada não comprova desativação. Não remova a conta por este erro."
     if any(term in text for term in (
@@ -224,7 +234,7 @@ def _public_event(kind: str, payload: dict[str, Any]) -> dict[str, Any] | None:
         }
     if kind == "account_start":
         return {
-            "level": "info", "stage": "Envio", "title": "Envio iniciado",
+            "level": "info", "stage": "Operação", "title": "Operação iniciada",
             "detail": email or "Conta selecionada",
         }
     if kind == "account_retry":
@@ -280,12 +290,16 @@ def _public_event(kind: str, payload: dict[str, Any]) -> dict[str, Any] | None:
             "detail": f"A campanha retomará dentro da janela {hours[0]}h–{hours[1]}h.",
         }
     if kind == "item_incomplete":
+        if payload.get('reason') == 'cleanup_failed':
+            return {'level': 'error', 'stage': 'Organização', 'title': 'Limpeza pendente',
+                'detail': ('Envios confirmados; a limpeza falhou e a campanha parou antes de '
+                           'baixar outro vídeo. O diagnóstico está no Histórico.')}
         if payload.get('reason') == 'media_retained_for_recovery':
             gib = float(payload.get('retained_bytes') or 0) / 1024 ** 3
-            return {'level': 'error', 'stage': 'Organização', 'title': 'Limpeza pendente',
+            return {'level': 'warning', 'stage': 'Organização', 'title': 'Mídia preservada',
                 'detail': (f"Envios confirmados; {int(payload.get('retained_managed') or 0)} arquivo(s) "
-                           f"gerenciado(s) preservado(s), {gib:.2f} GiB. A campanha parou antes de baixar "
-                           "outro vídeo. O diagnóstico está no Histórico.")}
+                           f"gerenciado(s) preservado(s) por proteção local, {gib:.2f} GiB. "
+                           "A campanha continuou; o diagnóstico está no Histórico.")}
         return {
             "level": "error", "stage": "Envio", "title": "Lote incompleto",
             "detail": "Uma ou mais contas não concluíram o envio; o vídeo foi preservado.",
@@ -312,12 +326,17 @@ def _public_event(kind: str, payload: dict[str, Any]) -> dict[str, Any] | None:
         files = int(payload.get("files") or 0)
         mib = float(payload.get("bytes") or 0) / (1024 ** 2)
         retained = int(payload.get('retained_managed') or 0)
-        if retained or payload.get('errors'):
-            gib = float(payload.get('retained_bytes') or 0) / 1024 ** 3
+        errors = list(payload.get('errors') or [])
+        if errors:
             return {'level': 'warning', 'stage': 'Organização', 'title': 'Limpeza incompleta',
                 'detail': (f"{files} arquivo(s) removido(s) · {mib:.1f} MB liberados. "
-                           f"{retained} arquivo(s) gerenciado(s) preservado(s) · {gib:.2f} GiB. "
-                           "Confira o diagnóstico antes de continuar.")}
+                           f"{len(errors)} falha(s) de remoção; o diagnóstico está no Histórico.")}
+        if retained:
+            gib = float(payload.get('retained_bytes') or 0) / 1024 ** 3
+            return {'level': 'warning', 'stage': 'Organização', 'title': 'Mídia preservada',
+                'detail': (f"{files} arquivo(s) removido(s) · {mib:.1f} MB liberados. "
+                           f"{retained} arquivo(s) gerenciado(s) preservado(s) por proteção local "
+                           f"· {gib:.2f} GiB. A campanha continua.")}
         return {
             "level": "info", "stage": "Organização", "title": "Espaço liberado",
             "detail": f"{files} arquivo(s) temporário(s) removido(s) · {mib:.1f} MB",
@@ -765,8 +784,8 @@ class CampaignRunner:
                 self.current = f"{label}{suffix}…"
                 self.stage = "Preparação"
             elif kind == "account_start":
-                self.current = f"enviando para {payload.get('email')}…"
-                self.stage = "Envio"
+                self.current = f"operação iniciada para {payload.get('email')}…"
+                self.stage = "Operação"
             elif kind == "storage_cleanup":
                 freed = float(payload.get("bytes") or 0) / (1024 ** 2)
                 self.current = (
@@ -777,19 +796,20 @@ class CampaignRunner:
             elif kind == "account_progress":
                 phase = str(payload.get("phase") or "envio")
                 phase_pt = {
-                    "encode": "preparando vídeo da conta",
-                    "create/sas": "abrindo envio",
-                    "create": "registrando envio",
+                    "appcheck": "validando App Check",
+                    "encode": "montando pacote de vídeo da conta",
+                    "create/sas": "abrindo transferência",
+                    "create": "registrando transferência",
                     "sas": "preparando transferência",
-                    "transport": "subindo vídeo",
-                    "complete": "confirmando envio",
-                    "evaluate": "avaliando vídeo",
-                    "finalize": "finalizando sessão",
+                    "transport": "transferindo vídeo",
+                    "complete": "confirmando transferência",
+                    "evaluate": "confirmando avaliação",
+                    "finalize": "confirmando finalização",
                     "fail": "registrando falha do envio",
-                    "sidecar": "preparando sensores",
-                }.get(phase, "processando envio")
+                    "sidecar": "montando pacote de sensores",
+                }.get(phase, "processando operação")
                 if phase == "transport" and payload.get("artifact") == "sidecar":
-                    phase_pt = "subindo sensores"
+                    phase_pt = "transferindo sensores"
                 suffix = ""
                 if phase == "transport" and payload.get("total_bytes"):
                     percent = float(payload.get("percent") or 0.0)
@@ -798,8 +818,18 @@ class CampaignRunner:
                     suffix = f" — {percent:.0f}% · {speed_mbps:.1f} Mbps"
                     if eta_s > 0:
                         suffix += f" · faltam {_fmt_wait(eta_s)}"
+                if phase in {"appcheck"}:
+                    stage = "Validação"
+                elif phase in {"encode", "sidecar"}:
+                    stage = "Pacote"
+                elif phase in {"create", "create/sas", "sas", "transport"}:
+                    stage = "Transferência"
+                elif phase in {"complete", "evaluate", "finalize"}:
+                    stage = "Confirmação"
+                else:
+                    stage = "Operação"
                 self.current = f"{payload.get('email')}: {phase_pt}{suffix}…"
-                self.stage = "Envio"
+                self.stage = stage
             elif kind == "batch_tick":
                 pending = int(payload.get("pending_accounts") or 0)
                 elapsed = int(payload.get("elapsed_s") or 0)

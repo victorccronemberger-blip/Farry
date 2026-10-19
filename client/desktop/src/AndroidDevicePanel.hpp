@@ -34,6 +34,7 @@ private:
   void requestRefresh();
   void requestAppCheckStatus();
   void requestAppCheckRefresh();
+  void updateAppCheckObservationState();
   void startUsbWatcher();
   void selectDevice(int index);
   void updateRequestUi();
@@ -78,5 +79,6 @@ private:
   bool _serviceAvailable{};
   bool _requestPending{};
   bool _appCheckPending{};
+  bool _appCheckStatusReadFailed{};
   bool _refreshQueued{};
 };

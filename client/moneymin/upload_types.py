@@ -46,7 +46,14 @@ class UploadError(RuntimeError):
     @property
     def authentication_required(self) -> bool:
         reason = self.blocked_reason.casefold() if isinstance(self.blocked_reason, str) else None
-        return reason == "app_check" or (self.status_code == 401 and not reason)
+        if reason == "app_check":
+            # Local ADB capture miss before any Minute write can be retried by the
+            # campaign without treating it as an operator authentication halt.
+            if (self.request_not_sent and self.transient is True
+                    and self.appcheck_cause == "device_capture_failed"):
+                return False
+            return True
+        return self.status_code == 401 and not reason
 
     @property
     def retryable(self) -> bool:

@@ -24,7 +24,9 @@ def campaign_preflight(_services):
         result, status = _services.campaign_verifications.get(
             (request_id, body_digest), lambda progress: _services.background_campaign_preflight(body, progress))
     else:
-        result, status = _services.run_campaign_preflight(body)
+        # Sync consumers share the same drain counter as async so close_drain
+        # stays blocked while this preflight is still running.
+        result, status = _services.background_campaign_preflight(body, lambda _message: None)
     return _services.jsonify(result), status
 
 def background_campaign_preflight(_services, body, progress):

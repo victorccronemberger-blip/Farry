@@ -449,8 +449,8 @@ def _download_to(bucket: str, key: str, dest: Path, *,
             code = str(error.get("Code") or "")
             if code in {"ExpiredToken", "InvalidAccessKeyId", "SignatureDoesNotMatch"}:
                 raise RuntimeError(
-                    "credenciais Ego4D inválidas ou expiradas; renove a licença "
-                    "e atualize o perfil AWS configurado") from exc
+                    "credenciais Ego4D inválidas ou expiradas; "
+                    "atualize as credenciais do perfil AWS configurado") from exc
             if code in {"AccessDenied", "403"}:
                 raise RuntimeError(
                     f"acesso negado ao Ego4D para s3://{bucket}/{key}; "

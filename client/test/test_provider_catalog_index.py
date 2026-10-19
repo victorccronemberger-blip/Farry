@@ -138,6 +138,66 @@ class PersistentNymeriaIndexTests(unittest.TestCase):
                 side_effect=AssertionError('unchanged content reclassified')):
             self.assertEqual(self.plans(), expected)
 
+    def test_prepared_base_serves_unprepared_range_without_changing_proof(self):
+        with persist_catalog_indexes():
+            base = nymeria.planned_candidates(task_name=fixture.TASK, root=self.root)
+        self.assertTrue(base)
+        files = set((self.root / '_catalog').glob('task_selection_*.json'))
+        nymeria.clear_caches()
+        with prepared_catalog_read(), patch.object(nymeria, '_planned_sequence_batch',
+                side_effect=AssertionError('filtered read reclassified')), \
+             patch.object(nymeria, '_snapshot', side_effect=AssertionError('VRS opened')):
+            actual = nymeria.planned_candidates(task_name=fixture.TASK,
+                min_dur_s=120, max_dur_s=540, root=self.root)
+            self.assertEqual(actual, [clip for clip in base if 120 <= clip['dur_s'] <= 540])
+            self.assertTrue(actual)
+            limited = nymeria.planned_candidates(task_name=fixture.TASK,
+                min_dur_s=120, max_dur_s=540, root=self.root, max_results=0)
+            self.assertEqual(limited, [])
+        self.assertEqual(set((self.root / '_catalog').glob('task_selection_*.json')), files)
+        for clip in actual:
+            self.assertEqual(nymeria.revalidate_planned_candidate(clip, root=self.root), clip)
+
+    def test_filtered_base_does_not_replace_explicit_duration_preparation(self):
+        with persist_catalog_indexes():
+            nymeria.planned_candidates(task_name=fixture.TASK, root=self.root)
+        nymeria.clear_caches()
+        with prepared_catalog_read():
+            filtered = nymeria.planned_candidates(task_name=fixture.TASK,
+                min_dur_s=60, max_dur_s=300, root=self.root)
+        self.assertEqual(filtered, [])
+        with persist_catalog_indexes():
+            prepared = nymeria.planned_candidates(task_name=fixture.TASK,
+                min_dur_s=60, max_dur_s=300, root=self.root)
+        self.assertTrue(prepared)
+        nymeria.clear_caches()
+        with prepared_catalog_read(), patch.object(nymeria, '_planned_sequence_batch',
+                side_effect=AssertionError('prepared variant reclassified')):
+            self.assertEqual(nymeria.planned_candidates(task_name=fixture.TASK,
+                min_dur_s=60, max_dur_s=300, root=self.root), prepared)
+
+    def test_base_fallback_rejects_changed_annotation_content(self):
+        with persist_catalog_indexes():
+            nymeria.planned_candidates(task_name=fixture.TASK, root=self.root)
+        self.write_rows(text=fixture.ACTION.replace('shirt', 'pants'))
+        nymeria.clear_caches()
+        with prepared_catalog_read(), patch.object(nymeria, '_planned_sequence_batch',
+                side_effect=AssertionError('changed source reclassified')):
+            with self.assertRaises(CatalogPreparationRequired):
+                nymeria.planned_candidates(task_name=fixture.TASK,
+                    min_dur_s=120, max_dur_s=540, root=self.root)
+
+    def test_base_fallback_does_not_claim_ranges_outside_its_coverage(self):
+        with persist_catalog_indexes():
+            nymeria.planned_candidates(task_name=fixture.TASK, root=self.root)
+        nymeria.clear_caches()
+        with prepared_catalog_read():
+            for minimum, maximum in ((30, 540), (60, 3600)):
+                with self.subTest(minimum=minimum, maximum=maximum):
+                    with self.assertRaises(CatalogPreparationRequired):
+                        nymeria.planned_candidates(task_name=fixture.TASK,
+                            min_dur_s=minimum, max_dur_s=maximum, root=self.root)
+
     def test_legacy_stat_bound_index_still_reads_without_repreparing(self):
         expected = self.prepare()
         path = next((self.root / '_catalog').glob('task_selection_*.json'))
@@ -269,6 +329,20 @@ class ProviderCatalogEndpointTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.sources.sync_catalog.assert_not_called()
         self.assertEqual(self.client.post('/api/catalogs/providers/prepare?dataset=bad').status_code, 400)
+
+    def test_status_finds_base_index_for_other_duration_without_claiming_ready(self):
+        import hashlib
+        path = self.root / '_catalog' / ('task_selection_' +
+            hashlib.sha256(b'60.0|1800.0').hexdigest()[:16] + '.json')
+        path.parent.mkdir()
+        path.write_text('{}', encoding='utf8')
+        result = self.client.get('/api/catalogs/providers?dataset=nymeria&min_dur_s=120&max_dur_s=540')
+        self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.json['indexes_found']['nymeria'])
+        self.assertEqual(result.json['state'], 'idle')
+        self.assertNotIn('ready', result.json)
+        self.assertEqual(self.calls, [])
+        self.sources.sync_catalog.assert_not_called()
 
     def completed(self, provider='nymeria'):
         initial = self.client.post(f'/api/catalogs/providers/prepare?dataset={provider}')

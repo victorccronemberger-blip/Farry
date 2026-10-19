@@ -71,11 +71,32 @@ Após aprovação dos artefatos, publique com `--publish --artifact-directory di
 1. Faça commit do código aprovado. Mantenha o snapshot `client/` coerente com o pacote.
 2. `node tools/init-signing-key.mjs` cria a chave apenas se não existir. Guarde `secrets/update-private.pem` em backup privado; nunca publique essa chave. Não regenere a chave após distribuir launchers sem planejar a migração de confiança.
 3. `./tools/test-launcher.ps1` e a compilação com assinatura interna descrita acima. Valide o instalador antes de promover os artefatos para `dist/`.
-4. Instale PyInstaller em `work/build-dependencies` usando o Python do projeto, e execute `./tools/package-client.ps1 -ProjectRoot <pasta-Finally-testada> -InternalSigning`. O script empacota o motor, copia o aplicativo validado e executa a verificação em perfis temporários antes de assinar. Não instala no perfil do usuário.
+4. Prepare um build novo e use o fluxo abaixo. O empacotador exige o diretório compilado e a versão correspondente; não consome o executável instalado de `dist-local`. Ele prepara as DLLs Qt, empacota o motor e executa a verificação em perfis temporários antes de assinar. Não instala no perfil do usuário.
 5. `python tools/github_release.py --version <nova-versao> --check` valida assinatura RSA, versão do manifesto, tamanhos e hashes completos. Só depois consulta o GitHub para exigir versão crescente e recusar versão existente. É uma operação de leitura e não cria releases; sem integridade válida ou sem acesso remoto, falha. A release 1.0.63 existente permanece intacta e não pode ser sobrescrita.
 6. Quando a versão estiver aprovada e houver autorização para publicação: `python tools/github_release.py --version <nova-versao> --publish`. Usa a autenticação existente do Git, cria uma release em rascunho, envia quatro artefatos e só então publica. Se um upload falhar, o rascunho não será oferecido aos clientes; conclua o rascunho antes de repetir. `--publish-existing` também exige a validação local e verifica os hashes remotos antes de promover o rascunho.
 
 Use uma versão crescente para cada pacote novo. Não altere os artefatos de uma versão já publicada.
+
+### Atualizar o aplicativo com suas dependências
+
+A distribuição Windows usa um pacote próprio com Qt, Python, bibliotecas do motor, Chromium, FFmpeg/FFprobe e Android Platform-Tools/ADB. O instalador e o launcher existentes controlam instalação e atualização por versão. Docker não é necessário para esse fluxo. O cliente não precisa instalar Python, Qt, FFmpeg ou ADB separadamente. O Windows e o .NET Framework 4.8 continuam sendo requisitos; funcionalidades USB também dependem do driver e da autorização do celular.
+
+A preparação 1.0.65 compila o aplicativo desta cópia local, com versão 1.0.65 nos executáveis, em vez de reutilizar o aplicativo 1.0.63 da distribuição anterior. O pacote inclui somente a configuração móvel padrão pública; credenciais, tokens, dispositivos e dados deste computador ficam fora da distribuição. Consulte `validation/windows-bundled-2026-10-19.json` para os resultados e o estado de publicação verificados.
+
+Para uma nova versão do aplicativo, primeiro valide a cópia Finally pelo runner isolado e compile apenas em `build-modular2`. Exemplo de preparação da próxima versão, **ainda sem publicação**:
+
+```powershell
+# Na raiz da cópia Finally; o SDK fornece ferramentas, sem alterar outras cópias.
+./scripts/build_local.ps1 -BuildOnly -Version 1.0.65 -ToolchainRoot '<raiz-do-SDK>'
+
+# Na raiz Farry, depois de os testes e a compilação passarem.
+./tools/build-launcher.ps1 -Version 1.0.65 -IsccPath '<ISCC.exe>' -OutputDirectory './dist/releases/1.0.65'
+./tools/test-internal-signing.ps1 -ArtifactDirectory './dist/releases/1.0.65'
+./tools/package-client.ps1 -ProjectRoot '<pasta-Finally-testada>' -BuildDirectory '<pasta-Finally-testada>/build-modular2' -QtRoot '<Qt-mingw_64>' -CompilerBinDirectory '<MinGW/bin>' -Version 1.0.65
+python tools/github_release.py --version 1.0.65 --artifact-directory dist/releases/1.0.65 --check
+```
+
+O empacotador recusa versão divergente e artefatos já existentes. Se os redistribuíveis UCRT estiverem fora do Windows SDK padrão, informe também `-UcrtDirectory '<raiz-do-Redist>'`. Mantenha o `client/` sincronizado com a cópia usada no build. Uma atualização de fontes no Git não publica automaticamente um novo pacote. Consulte `validation/client-sync-2026-10-19.json` para o inventário desta sincronização; a aceitação da nova distribuição depende de testes, build e verificação do pacote atualizados.
 
 ## Validação
 

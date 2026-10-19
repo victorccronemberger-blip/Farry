@@ -451,6 +451,91 @@ class AppCheckTests(unittest.TestCase):
         self.assertTrue(result["token_available"])
         self.assertEqual(result["device"]["left_s"], 3500)
 
+    def test_ensure_app_check_fresh_escalates_to_minute_restart(self):
+        stale = {
+            "configured": True, "configuration_present": True, "token_available": False,
+            "paused": False, "retry_after_seconds": 0,
+            "device": {"enabled": True, "left_s": 100, "min_left_s": 600},
+        }
+        still = {**stale}
+        fresh = {**stale, "token_available": True,
+                 "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
+        with patch.object(a, "app_check_status", side_effect=[stale, still, fresh]), \
+             patch.object(a, "mint_app_check_token", return_value=None) as mint:
+            result = a.ensure_app_check_fresh()
+        self.assertEqual(
+            [call.kwargs.get("force_refresh") for call in mint.call_args_list],
+            [False, True],
+        )
+        self.assertTrue(result["token_available"])
+
+    def test_ensure_escalates_when_mirrored_bearer_below_device_floor(self):
+        mirrored = {
+            "configured": True, "configuration_present": True, "token_available": True,
+            "source": "bearer", "paused": False, "retry_after_seconds": 0,
+            "device": {"enabled": True, "left_s": None, "min_left_s": 600},
+        }
+        fresh = {**mirrored, "source": "device",
+                 "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
+        with patch.object(a, "app_check_status", side_effect=[mirrored, mirrored, fresh]), \
+             patch.object(a, "_configured_bearer", return_value="mirror.jwt"), \
+             patch.object(a, "_bearer_left_s", return_value=45.0), \
+             patch.object(a, "mint_app_check_token", return_value="mirror.jwt") as mint:
+            result = a.ensure_app_check_fresh()
+        self.assertEqual(
+            [call.kwargs.get("force_refresh") for call in mint.call_args_list],
+            [False, True],
+        )
+        self.assertEqual(result["source"], "device")
+        self.assertEqual(result["device"]["left_s"], 3500)
+
+    def test_renew_escalates_when_mirrored_bearer_below_device_floor(self):
+        mirrored = {
+            "configured": True, "configuration_present": True, "token_available": True,
+            "source": "bearer", "paused": False, "retry_after_seconds": 0,
+            "device": {"enabled": True, "left_s": None, "min_left_s": 600},
+        }
+        fresh = {**mirrored, "source": "device",
+                 "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes",
+                   return_value={"enabled": True, "explicitly_disabled": False}), \
+             patch.object(a, "app_check_status", side_effect=[mirrored, mirrored, fresh]), \
+             patch.object(a, "_configured_bearer", return_value="mirror.jwt"), \
+             patch.object(a, "_bearer_left_s", return_value=45.0), \
+             patch.object(a, "mint_app_check_token", return_value="mirror.jwt") as mint:
+            result = a.renew_app_check_for_batch()
+        self.assertEqual(
+            [(call.kwargs.get("force_refresh"), call.kwargs.get("bypass_live_session"))
+             for call in mint.call_args_list],
+            [(False, True), (True, True)],
+        )
+        self.assertEqual(result["device"]["left_s"], 3500)
+
+    def test_bearer_left_reports_expiry_delta_and_rejects_bad_shape(self):
+        import base64
+        from moneymin.mobile.appcheck import jwt as jwt_module
+
+        segment = base64.urlsafe_b64encode(json.dumps({"exp": 1000}).encode()).rstrip(b"=").decode()
+        token = f"header.{segment}.signature"
+        self.assertEqual(jwt_module.bearer_left_s(token, clock=lambda: 940.0), 60.0)
+        self.assertTrue(jwt_module.bearer_still_valid(token, clock=lambda: 940.0))
+        self.assertFalse(jwt_module.bearer_still_valid(token, clock=lambda: 980.0))
+        self.assertIsNone(jwt_module.bearer_left_s("not-a-jwt", clock=lambda: 0.0))
+
+    def test_ensure_ignores_firebase_cooldown_in_device_mode(self):
+        stale = {
+            "configured": True, "configuration_present": True, "token_available": False,
+            "paused": False, "retry_after_seconds": 3600,
+            "device": {"enabled": True, "left_s": None, "min_left_s": 600},
+        }
+        fresh = {**stale, "token_available": True, "retry_after_seconds": 0,
+                 "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
+        with patch.object(a, "app_check_status", side_effect=[stale, fresh]), \
+             patch.object(a, "mint_app_check_token", return_value="device.jwt") as mint:
+            result = a.ensure_app_check_fresh()
+        mint.assert_called_once_with(force_refresh=False)
+        self.assertTrue(result["token_available"])
+
     def test_ensure_app_check_fresh_skips_when_above_floor(self):
         ready = {
             "configured": True, "configuration_present": True, "token_available": True,
@@ -461,6 +546,44 @@ class AppCheckTests(unittest.TestCase):
              patch.object(a, "mint_app_check_token") as mint:
             self.assertEqual(a.ensure_app_check_fresh(), ready)
         mint.assert_not_called()
+
+    def test_renew_app_check_for_batch_always_bypasses_live_session(self):
+        ready = {
+            "configured": True, "configuration_present": True, "token_available": True,
+            "paused": False, "retry_after_seconds": 0,
+            "device": {"enabled": True, "left_s": 3500, "min_left_s": 600},
+        }
+        # Status still shows a long-lived token; batch renew must still mint
+        # with bypass so each multi-account clip re-reads the phone.
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes",
+                   return_value={"enabled": True, "explicitly_disabled": False}), \
+             patch.object(a, "app_check_status", side_effect=[ready, ready]) as status, \
+             patch.object(a, "mint_app_check_token", return_value="batch.jwt") as mint:
+            result = a.renew_app_check_for_batch()
+        mint.assert_called_once_with(force_refresh=False, bypass_live_session=True)
+        self.assertEqual(status.call_count, 2)
+        self.assertTrue(result["token_available"])
+
+    def test_renew_app_check_for_batch_escalates_when_soft_misses(self):
+        unavailable = {
+            "configured": True, "configuration_present": True, "token_available": False,
+            "paused": False, "retry_after_seconds": 0,
+            "device": {"enabled": True, "left_s": None, "min_left_s": 600},
+        }
+        available = {**unavailable, "token_available": True,
+                     "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes",
+                   return_value={"enabled": True, "explicitly_disabled": False}), \
+             patch.object(a, "app_check_status",
+                          side_effect=[unavailable, unavailable, available]), \
+             patch.object(a, "mint_app_check_token", return_value=None) as mint:
+            result = a.renew_app_check_for_batch()
+        self.assertEqual(
+            [(c.kwargs.get("force_refresh"), c.kwargs.get("bypass_live_session"))
+             for c in mint.call_args_list],
+            [(False, True), (True, True)],
+        )
+        self.assertTrue(result["token_available"])
 
     def test_write_without_appcheck_raises_local_error_with_operation_phase(self):
         # Writes require App Check locally before the network call. Phase follows
@@ -503,6 +626,40 @@ class AppCheckTests(unittest.TestCase):
             self.assertEqual(session.request('GET', '/api/v1/users/me'), (200, '{}'))
             self.assertNotIn('X-Firebase-AppCheck', request.call_args.kwargs['headers'])
             self.assertEqual(request.call_args.kwargs['headers']['Authorization'], 'Bearer firebase-token')
+
+    def test_write_gate_renews_from_device_before_refusing(self):
+        with patch.object(api, "_device_appcheck_renewable", return_value=True), \
+             patch.object(a, "get_app_check_header",
+                          side_effect=[{}, {"X-Firebase-AppCheck": "renewed.jwt"}]) as header, \
+             patch.object(a, "ensure_app_check_fresh",
+                          return_value={"token_available": True}) as renew:
+            result = api.require_app_check_for_write("POST", "/api/v1/uploads")
+        renew.assert_called_once_with()
+        self.assertEqual(result, {"X-Firebase-AppCheck": "renewed.jwt"})
+        self.assertEqual(header.call_count, 2)
+
+    def test_write_gate_does_not_renew_when_device_mode_off(self):
+        with patch.object(api, "_device_appcheck_renewable", return_value=False), \
+             patch.object(a, "get_app_check_header", return_value={}), \
+             patch.object(a, "ensure_app_check_fresh") as renew, \
+             patch.object(a, "app_check_status", return_value={
+                 "diagnostic": {"category": "not_configured", "message": "sem credencial"}}):
+            with self.assertRaises(UploadError) as raised:
+                api.require_app_check_for_write("POST", "/api/v1/uploads")
+        renew.assert_not_called()
+        self.assertEqual(raised.exception.blocked_reason, "app_check")
+
+    def test_write_gate_still_refuses_when_device_renew_fails(self):
+        with patch.object(api, "_device_appcheck_renewable", return_value=True), \
+             patch.object(a, "get_app_check_header", return_value={}), \
+             patch.object(a, "ensure_app_check_fresh",
+                          return_value={"token_available": False}), \
+             patch.object(a, "app_check_status", return_value={
+                 "diagnostic": {"category": "device_capture_failed",
+                                "message": "celular indisponível"}}):
+            with self.assertRaises(UploadError) as raised:
+                api.require_app_check_for_write("POST", "/api/v1/uploads")
+        self.assertEqual(raised.exception.appcheck_cause, "device_capture_failed")
 
 
 if __name__ == '__main__':

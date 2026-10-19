@@ -82,6 +82,10 @@ void ApiClient::request(const QByteArray& method, const QString& path,
     req.setTransferTimeout(180000);
   else if (method == "POST" && path.startsWith(QStringLiteral("/api/campaigns/preflight?")))
     req.setTransferTimeout(15000);
+  else if (method == "POST" && path == QStringLiteral("/api/integrations/appcheck/recheck"))
+    // Soft ADB is seconds; hard Minute restart can approach ~6 min. Bound the
+    // wait so Atualizar cannot leave the panel pending forever.
+    req.setTransferTimeout(420000);
   else if (method == "POST" && (path.startsWith(QStringLiteral("/api/campaigns/"))
                                || path == QStringLiteral("/api/campaign/reset")
                                || path == QStringLiteral("/api/sent/reset")))

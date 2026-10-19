@@ -42,5 +42,7 @@ sem serem apresentados como credenciais ativas.
 
 ```powershell
 $env:QMONEY_APPCHECK_SOURCE = "device"
+# Campanha/admissão também ativam SOURCE=device se a variável estiver vazia
+# (não sobrescreve off/bearer/debug). Serial: cache de identidade ou ANDROID_SERIAL.
 python app/examples/probe_create.py --serial RQCT804KN2N
 ```

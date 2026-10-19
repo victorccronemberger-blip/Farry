@@ -19,7 +19,7 @@ from typing import Any
 
 from . import config, ego4d, nymeria_vrs, task_matching
 from .background_work import report_progress
-from .catalog_policy import require_prepared_index, persist_index_requested
+from .catalog_policy import require_prepared_index, persist_index_requested, prepared_only_requested
 
 _ALGORITHM = "nymeria-atomic-device-v6"
 _PLANNED_ALGORITHM = _ALGORITHM + "-planned"
@@ -896,6 +896,18 @@ def planned_candidates(*, task_name: str | None = None, task_id: str | None = No
         except (OSError, ValueError, AttributeError):
             pass
         if candidates is None:
+            if (prepared_only_requested() and 60.0 <= minimum <= maximum <= 1800.0
+                    and (minimum, maximum) != (60.0, 1800.0)):
+                # Reuse whole windows from the validated base index, as Ego4D
+                # does. Keep their original bounds/proof for later measured
+                # validation; filtering cannot authorize a new cut. Do not
+                # cache this view under the requested range or persist it:
+                # explicit preparation must still discover additional cuts.
+                full = planned_candidates(task_name=task_name, task_id=task_id,
+                    registry_key=registry_key, min_dur_s=60.0, max_dur_s=1800.0,
+                    root=base)
+                selected = [clip for clip in full if minimum <= clip["dur_s"] <= maximum]
+                return selected if max_results is None else selected[:max(0, int(max_results))]
             require_prepared_index("NymeriaPlus para esta faixa de duração")
     if candidates is None:
         out = []

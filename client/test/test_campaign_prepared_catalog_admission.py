@@ -11,12 +11,14 @@ from moneymin.catalog_policy import persist_catalog_indexes, prepared_only_reque
 from moneymin.web import server
 import test_ego4d_selection_bindings as selection_fixture
 import test_nymeria_on_demand_selection as nymeria_fixture
+from auth_fixtures import configure_app_check
 
 
 class CampaignPreparedCatalogAdmissionTests(unittest.TestCase):
     same_stat_replace = selection_fixture.SelectionBindingTests.same_stat_replace
 
     def setUp(self):
+        configure_app_check(self)
         selection_fixture.SelectionBindingTests.setUp(self)
         secrets = self.root / "secrets"
         secrets.mkdir()

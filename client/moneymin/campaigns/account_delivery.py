@@ -96,9 +96,31 @@ def upload_to_account(_services, item: dict[str, Any], account: AccountSpec,
                 else:
                     sess.warmup()
         # Campanhas longas ultrapassam a vida do JWT. Renove abaixo do piso
-        # (~10 min) antes deste vídeo; a falha de renovação segue no gate CREATE.
+        # (~10 min) antes deste vídeo; soft ADB + reinício do Minute se preciso.
         from .. import appcheck
-        appcheck.ensure_app_check_fresh()
+        if on_progress:
+            on_progress("appcheck", "renew", 0)
+        appcheck_status = appcheck.ensure_app_check_fresh()
+        if on_progress:
+            on_progress("appcheck", "renew", 1)
+        if not appcheck_status.get("token_available"):
+            diagnostic = appcheck_status.get("diagnostic") or {}
+            message = (
+                diagnostic.get("message")
+                or "App Check indisponível após tentativa de renovação no celular."
+            )
+            cause = diagnostic.get("category") or appcheck_status.get("failure") or "device_capture_failed"
+            raise _services.UploadError(
+                f"App Check indisponível: {message} (causa: {cause}). "
+                "Resolva a indisponibilidade de App Check antes de retomar o envio.",
+                transient=False,
+                phase="prepare",
+                blocked_reason="app_check",
+                review_required=False,
+                appcheck_cause=cause if isinstance(cause, str) else "device_capture_failed",
+                appcheck_message=message if isinstance(message, str) else message,
+                request_not_sent=True,
+            )
         result["org_key"] = account.org_key
         profile = _services.device_profile.get_profile(account.email)
         if recover_pending and not getattr(sess, "_moneymin_pending_pumped", False):
@@ -165,28 +187,43 @@ def upload_to_account(_services, item: dict[str, Any], account: AccountSpec,
                 stats=imu_diag_live)
             item = dict(item)
             item["imu_diagnostics"] = imu_diag_live
+        fps = video_probe.get("fps") or 30.0
+        start_wall = _services.device_profile.recorded_at_to_wall_ms(recorded_at)
+        wall_for_uptime = start_wall or int(_services.time.time() * 1000)
+        from ..mobile import physical_binding as pb
+        from ..mobile.physical_binding import PhysicalDeviceRequiredError
+        try:
+            if pb.device_mode_requires_physical():
+                bound = pb.require_campaign_physical_binding(
+                    wall_ms=wall_for_uptime)
+                frames_offset = bound["uptime_ns"]
+                frames_gop = bound["frames_gop"]
+                imu_device_id = bound["device_id"]
+            else:
+                frames_offset = profile.uptime_ns_at(wall_for_uptime)
+                frames_gop = profile.frames_gop
+                imu_device_id = profile.device_id
+        except PhysicalDeviceRequiredError as exc:
+            raise _services.UploadError(
+                str(exc), transient=False, phase="prepare") from exc
         if not imu_csv:
             if item.get("source") in {"ego4d", "nymeria"}:
                 raise _services.UploadError(
                     "IMU real do dataset ausente; envio bloqueado sem substituição sintética.",
                     transient=False, phase="prepare")
-            # Sem IMU real: gera a do APARELHO (sinal próprio por conta — nunca
-            # a mesma IMU sintética para N contas).
+            # Sem IMU real: sinal do aparelho (físico em modo device; perfil fora).
             imu_csv = _services.build_imu_csv(
                 int(item["duration_ms"]),
-                seed=f"moneymin.imu:{profile.device_id}")
-        fps = video_probe.get("fps") or 30.0
-        start_wall = _services.device_profile.recorded_at_to_wall_ms(recorded_at)
-        frames_offset = profile.uptime_ns_at(
-            start_wall or int(_services.time.time() * 1000))
+                seed=f"moneymin.imu:{imu_device_id}")
         require_pts = item.get("source") in {"ego4d", "nymeria"}
         # frames.csv SEMPRE derivado do MP4 REAL (PTS/keyframes) + offset do
         # uptime Android do 1º frame. Nunca reusar o CSV preparado com relógio
         # em zero (desync: o metadata usa firstFrameSensorTimestampNs = uptime).
+        # Em modo device offset/GOP vêm do celular físico conectado.
         try:
             frames_csv = _services.build_frames_csv_from_video(
                 video_path, duration_ms=int(item["duration_ms"]),
-                fps=fps, gop=profile.frames_gop, offset_ns=frames_offset,
+                fps=fps, gop=frames_gop, offset_ns=frames_offset,
                 **({"require_measured_pts": True} if require_pts else {}))
         except ValueError as exc:
             if not require_pts:
@@ -240,14 +277,26 @@ def upload_to_account(_services, item: dict[str, Any], account: AccountSpec,
                     _services._cut_video_chunk(video_path, part, start_ms / 1000.0, dur_ms / 1000.0)
                 part_imu, n_imu = _services._slice_imu_csv(imu_csv, start_ms, dur_ms)
                 try:
+                    chunk_wall = (
+                        _services.device_profile.recorded_at_to_wall_ms(rec_at)
+                        or start_wall or int(_services.time.time() * 1000))
+                    if pb.device_mode_requires_physical():
+                        chunk_bound = pb.require_campaign_physical_binding(
+                            wall_ms=chunk_wall)
+                        chunk_offset = chunk_bound["uptime_ns"]
+                        chunk_gop = chunk_bound["frames_gop"]
+                    else:
+                        chunk_offset = profile.uptime_ns_at(chunk_wall)
+                        chunk_gop = profile.frames_gop
                     part_frames = _services.build_frames_csv_from_video(
                         part, duration_ms=dur_ms, fps=fps,
-                        gop=profile.frames_gop,
-                        offset_ns=profile.uptime_ns_at(
-                            _services.device_profile.recorded_at_to_wall_ms(rec_at)
-                            or start_wall or int(_services.time.time() * 1000)),
+                        gop=chunk_gop,
+                        offset_ns=chunk_offset,
                         **({"require_measured_pts": True}
                            if require_pts else {}))
+                except PhysicalDeviceRequiredError as exc:
+                    raise _services.UploadError(
+                        str(exc), transient=False, phase="prepare") from exc
                 except ValueError as exc:
                     if not require_pts:
                         raise
@@ -444,6 +493,11 @@ def upload_to_account(_services, item: dict[str, Any], account: AccountSpec,
                           "device", "uber_device", "access_paused", "policy", "version",
                           "tls", "invalid_response", "unknown"}:
             result["account_issue_code"] = issue_code
+        if getattr(exc, "request_not_sent", False) is True:
+            result["request_not_sent"] = True
+        # Missing integrity credentials require attention, even if their
+        # acquisition error was marked transient. Replaying this account would
+        # repeat all media checks without evidence that access has recovered.
         result["authentication_required"] = (
             issue_code in {"authentication", "app_check"}
             or blocked_reason == "app_check"

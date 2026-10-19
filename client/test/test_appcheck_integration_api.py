@@ -19,7 +19,8 @@ class AppCheckIntegrationApiTests(unittest.TestCase):
         after_state = deepcopy(after or before)
         states = [deepcopy(before), after_state, after_state, after_state]
         mint_return = mint_side_effect if mint_side_effect is not None else "private-token-canary"
-        with patch.object(appcheck, "app_check_status", side_effect=states), \
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes"), \
+             patch.object(appcheck, "app_check_status", side_effect=states), \
              patch.object(appcheck, "mint_app_check_token", return_value=mint_return) as mint:
             result = self.client.post("/api/integrations/appcheck/recheck", json={})
         return result, mint
@@ -40,7 +41,7 @@ class AppCheckIntegrationApiTests(unittest.TestCase):
                  "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
         response, mint = self.request(self.status, after)
         self.assertEqual(response.status_code, 200)
-        mint.assert_called_once_with(force_refresh=False)
+        mint.assert_called_once_with(force_refresh=False, bypass_live_session=True)
         self.assertTrue(response.get_json()["ok"])
         message = response.get_json()["message"]
         self.assertIn("disponível", message)
@@ -56,13 +57,16 @@ class AppCheckIntegrationApiTests(unittest.TestCase):
         available = {**self.status, "token_available": True,
                      "device": {"enabled": True, "left_s": 3500, "min_left_s": 600}}
         states = [deepcopy(unavailable), deepcopy(unavailable), deepcopy(available)]
-        with patch.object(appcheck, "app_check_status", side_effect=states), \
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes") as defaults, \
+             patch.object(appcheck, "app_check_status", side_effect=states), \
              patch.object(appcheck, "mint_app_check_token", return_value="private-token-canary") as mint:
             response = self.client.post("/api/integrations/appcheck/recheck", json={})
+        defaults.assert_called_once_with()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            [call.kwargs.get("force_refresh") for call in mint.call_args_list],
-            [False, True],
+            [(c.kwargs.get("force_refresh"), c.kwargs.get("bypass_live_session"))
+             for c in mint.call_args_list],
+            [(False, True), (True, True)],
         )
         self.assertTrue(response.get_json()["ok"])
         self.assertIn("após reinício do Minute", response.get_json()["message"])
@@ -70,11 +74,12 @@ class AppCheckIntegrationApiTests(unittest.TestCase):
     def test_existing_token_is_not_reported_as_a_confirmed_renewal(self):
         state = {**self.status, "token_available": True,
                  "device": {"enabled": True, "left_s": 1800, "min_left_s": 600}}
-        with patch.object(appcheck, "app_check_status", return_value=state), \
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes"), \
+             patch.object(appcheck, "app_check_status", return_value=state), \
              patch.object(appcheck, "mint_app_check_token", return_value=None) as mint:
             response = self.client.post("/api/integrations/appcheck/recheck", json={})
         self.assertEqual(response.status_code, 200)
-        mint.assert_called_once_with(force_refresh=False)
+        mint.assert_called_once_with(force_refresh=False, bypass_live_session=True)
         body = response.get_json()
         self.assertTrue(body["ok"])
         self.assertIn("disponível (30m 0s restantes via ADB)", body["message"])
@@ -97,7 +102,8 @@ class AppCheckIntegrationApiTests(unittest.TestCase):
                                 "message": "Firebase negou permissão na troca de App Check."}}
         # Live mint leaves token unavailable, so recheck also attempts hard refresh.
         states = [deepcopy(self.status), deepcopy(after), deepcopy(after)]
-        with patch.object(appcheck, "app_check_status", side_effect=states), \
+        with patch("moneymin.roglife_appcheck.ensure_device_defaults_for_writes"), \
+             patch.object(appcheck, "app_check_status", side_effect=states), \
              patch.object(appcheck, "mint_app_check_token", return_value="private-token-canary") as mint:
             response = self.client.post("/api/integrations/appcheck/recheck", json={})
         self.assertEqual(mint.call_count, 2)

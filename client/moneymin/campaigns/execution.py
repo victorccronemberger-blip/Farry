@@ -153,6 +153,36 @@ def _run_campaign(_services,
         batch_footage.setdefault(email, []).append(reservation)
         return reservation
 
+    def _note_retained_media(cleanup: dict[str, Any], clip_info: dict[str, Any], tsk) -> None:
+        """Registra mídia gerenciada preservada por proteção local, sem parar.
+
+        Os envios confirmados já estão liberados; arquivos ainda reservados por
+        registros anteriores (recibos pendentes, falha não reconhecida) ou pelo
+        preparo do próximo trecho permanecem no lugar. A pendência fica visível
+        no Histórico para revisão, e a campanha continua com o próximo vídeo —
+        o reuso do mesmo conteúdo não baixa bytes novos nem interrompe o fluxo.
+        """
+        retained = {
+            "kind": "storage_retained",
+            "clip_uid": clip_info["clip_uid"],
+            "retained_managed": cleanup.get("retained_managed", 0),
+            "retained_bytes": cleanup.get("retained_bytes", 0),
+            "retained_names": cleanup.get("retained_names", []),
+            "protected": cleanup.get("protected", 0),
+        }
+        with log._save_lock:
+            log.issues.append(retained)
+            log.save()
+        _log(
+            "  armazenamento: "
+            f"{retained['retained_managed']} arquivo(s) preservado(s) por proteção local "
+            f"({retained['retained_bytes'] / (1024 ** 2):.1f} MB); registrado no histórico; "
+            "o próximo vídeo segue")
+        _emit("item_incomplete", clip_uid=clip_info["clip_uid"],
+              task=tsk.scenario, reason="media_retained_for_recovery",
+              retained_managed=retained["retained_managed"],
+              retained_bytes=retained["retained_bytes"])
+
     until_exhausted = config.run_until_exhausted
     quota_s = 0.0 if until_exhausted else max(0.0, float(config.target_hours_per_account or 0) * 3600.0)
     n_tasks = max(1, len(config.tasks))
@@ -1052,6 +1082,67 @@ def _run_campaign(_services,
             scheduled_recordings = {account.email: recorded_at for _, _, account, recorded_at in queued}
 
             if queued:
+                # Um JWT fresco por lote (clipe × contas). ADB no celular antes
+                # de disparar os workers; o ensure por vídeo continua como rede.
+                from .. import appcheck as _appcheck
+                _emit("appcheck_batch_renew", clip_uid=clip_info["clip_uid"],
+                      task=tsk.scenario, state="start",
+                      accounts=len(pending_accounts))
+                _log("  App Check: renovando token do celular para este lote…")
+                batch_appcheck = {"token_available": False}
+                for renew_attempt in range(1, 4):
+                    if should_stop and should_stop():
+                        break
+                    batch_appcheck = _appcheck.renew_app_check_for_batch()
+                    if batch_appcheck.get("token_available"):
+                        break
+                    if renew_attempt >= 3:
+                        break
+                    wait_s = 15.0 * renew_attempt
+                    _log(f"  App Check lote: sem token (tentativa {renew_attempt}/3); "
+                         f"nova captura em {wait_s:.0f}s")
+                    _emit("appcheck_batch_renew", clip_uid=clip_info["clip_uid"],
+                          task=tsk.scenario, state="retry",
+                          attempt=renew_attempt, delay_s=wait_s)
+                    if _services._interruptible_sleep(
+                            wait_s, should_stop, _emit,
+                            kind="appcheck_batch_renew_tick",
+                            tick_every=_services._tick_every(wait_s)):
+                        break
+                left_s = (batch_appcheck.get("device") or {}).get("left_s")
+                _emit("appcheck_batch_renew", clip_uid=clip_info["clip_uid"],
+                      task=tsk.scenario, state="done",
+                      token_available=bool(batch_appcheck.get("token_available")),
+                      left_s=left_s)
+                if batch_appcheck.get("token_available"):
+                    _log(f"  App Check lote: token ok"
+                         + (f" ({int(left_s)}s restantes)" if isinstance(left_s, (int, float)) and left_s > 0
+                            else ""))
+                else:
+                    diagnostic = batch_appcheck.get("diagnostic") or {}
+                    cause = (diagnostic.get("category")
+                             or batch_appcheck.get("failure")
+                             or "device_capture_failed")
+                    message = (diagnostic.get("message")
+                               or "App Check indisponível após renovação do lote")
+                    _log("  [!] App Check lote indisponível; envio bloqueado antes "
+                         "das validações por conta")
+                    _emit(
+                        "campaign_stopped",
+                        reason="app_check_failure",
+                        appcheck_cause=cause if isinstance(cause, str) else "device_capture_failed",
+                        appcheck_message=message if isinstance(message, str) else str(message),
+                    )
+                    _stop_warm()
+                    _cleanup_on_stop(item, clip_info)
+                    break
+                if should_stop and should_stop():
+                    _log("  [!] campanha interrompida na renovação App Check do lote")
+                    _emit("campaign_stopped", reason="parada na renovação App Check do lote")
+                    _stop_warm()
+                    _cleanup_on_stop(item, clip_info)
+                    break
+
                 _log(f"  enviando para {len(pending_accounts)} conta(s) "
                      f"({workers} simultânea(s), teto {_services.max_account_workers()})")
                 with _services.ThreadPoolExecutor(max_workers=workers,
@@ -1283,14 +1374,15 @@ def _run_campaign(_services,
                         + (f"; falhas: {len(cleanup['errors'])}"
                            if cleanup["errors"] else "")
                     )
-                    if cleanup["errors"] or cleanup.get("retained_managed", 0):
+                    if cleanup["errors"]:
                         _emit("item_incomplete", clip_uid=clip_info["clip_uid"],
-                              task=tsk.scenario, reason="media_retained_for_recovery",
-                              retained_managed=cleanup.get("retained_managed", 0),
-                              retained_bytes=cleanup.get("retained_bytes", 0))
+                              task=tsk.scenario, reason="cleanup_failed",
+                              errors=list(cleanup["errors"]))
                         raise RuntimeError(
-                            "Mídia reservada para envio anterior ou limpeza incompleta; "
+                            "Limpeza incompleta após falhas de remoção dos envios confirmados; "
                             "a campanha não adquiriu outro vídeo. Resolva a pendência e retome.")
+                    if cleanup.get("retained_managed", 0):
+                        _note_retained_media(cleanup, clip_info, tsk)
                 elif config.cleanup_after_upload and not all_pending_succeeded:
                     _log(
                         "  armazenamento: mídia mantida porque há conta "
@@ -1305,10 +1397,12 @@ def _run_campaign(_services,
                       task=tsk.scenario, partial=False)
             elif config.cleanup_after_upload:
                 cleanup = _services._cleanup_uploaded_item(item, work_dir)
-                if cleanup["errors"] or cleanup.get("retained_managed", 0):
+                if cleanup["errors"]:
                     raise RuntimeError(
-                        "Mídia reservada para envio anterior ou limpeza incompleta; "
+                        "Limpeza incompleta após falhas de remoção dos envios confirmados; "
                         "a campanha não adquiriu outro vídeo. Resolva a pendência e retome.")
+                if cleanup.get("retained_managed", 0):
+                    _note_retained_media(cleanup, clip_info, tsk)
             # (log: sem os blobs/csv brutos — grandes; identity fica por conta)
 
         if log.status != "stopped" and not quota_s and not until_exhausted and automatic_selection:
@@ -1331,7 +1425,8 @@ def _run_campaign(_services,
             if remaining:
                 _emit("goal_shortfall", target_seconds=quota_s, remaining_seconds=remaining)
         log.status = ("error" if not sends["ok"] and not sends["skipped"] else
-                      "partial" if any(issue.get("kind") != "authentication_wait" for issue in log.issues)
+                      "partial" if any(issue.get("kind") not in {"authentication_wait", "storage_retained"}
+                                       for issue in log.issues)
                       or sends["failed"] else "done")
     log_path = log.save()
     _log(f"\nlog salvo: {log_path.name}")
@@ -1340,7 +1435,8 @@ def _run_campaign(_services,
         _emit("campaign_done", log_path=log_path.name, status=log.status,
               ok_sends=sends["ok"], failed_sends=sends["failed"],
               skipped_sends=sends["skipped"],
-              issues=sum(issue.get("kind") != "authentication_wait" for issue in log.issues),
+              issues=sum(issue.get("kind") not in {"authentication_wait", "storage_retained"}
+                          for issue in log.issues),
               shortfall_accounts=sum(account_seconds.get(a.email, 0) < quota_s
                                      for a in config.accounts) if quota_s else 0,
               preparation_failures=sum(issue.get("kind") == "clip_prepare_done"

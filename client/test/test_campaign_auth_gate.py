@@ -43,6 +43,18 @@ class CampaignAuthGateTests(unittest.TestCase):
         self.assertFalse(result["authentication_required"])
         self.assertEqual(result["account_issue_code"], "network")
 
+    def test_local_app_check_capture_failure_is_not_replayed_even_if_transient(self):
+        result = self._access_failure(UploadError(
+            "App Check indisponível", transient=True, phase="prepare",
+            blocked_reason="app_check", appcheck_cause="device_capture_failed",
+            appcheck_message="Fixture: credential unavailable", request_not_sent=True))
+        self.assertTrue(result["authentication_required"])
+        self.assertTrue(result["request_not_sent"])
+        self.assertFalse(result["retryable"])
+        self.assertFalse(result["review_required"])
+        self.assertFalse(result["restriction_confirmed"])
+        self.assertEqual(result["appcheck_cause"], "device_capture_failed")
+
     def test_policy_and_transient_failures_are_not_authentication_expiry(self):
         for code, status, retryable in (("restricted", 403, False), ("forbidden", 403, False),
                                        ("service", 503, True), ("rate_limit", 429, True)):

@@ -208,8 +208,21 @@ def _video_resume_payload(_services, item: dict[str, Any], profile: DeviceProfil
         platform = metadata.get("platform")
         video_meta = metadata.get("video")
         cameras = metadata.get("cameras")
-        if (device != profile.sidecar_device_meta()
-                or platform != profile.sidecar_platform_meta()
+        expected_device = profile.sidecar_device_meta()
+        expected_platform = profile.sidecar_platform_meta()
+        calibration = profile.calib
+        from ..mobile import physical_binding as pb
+        from ..mobile.physical_binding import PhysicalDeviceRequiredError
+        if pb.device_mode_requires_physical():
+            try:
+                bound = pb.require_campaign_physical_binding()
+                expected_device = bound["sidecar_device"]
+                expected_platform = bound["sidecar_platform"]
+                calibration = bound["calib"]
+            except PhysicalDeviceRequiredError as exc:
+                raise error from exc
+        if (device != expected_device
+                or platform != expected_platform
                 or not isinstance(video_meta, dict)
                 or type(video_meta.get("width")) is not int or video_meta["width"] <= 0
                 or type(video_meta.get("height")) is not int or video_meta["height"] <= 0
@@ -217,12 +230,17 @@ def _video_resume_payload(_services, item: dict[str, Any], profile: DeviceProfil
                 or not isinstance(cameras[0], dict)):
             raise error
         from .. import sidecar as sidecar_module
-        calibration = profile.calib
         camera = cameras[0]
         expected_intrinsics = sidecar_module._scale_camera_intrinsics(
             video_meta["width"], video_meta["height"], cal=calibration)
+        expected_name = calibration.get("cameraName")
+        if not (isinstance(expected_name, str) and expected_name.strip()):
+            expected_name = (
+                f"camera_logical_{calibration.get('logicalCameraId') or '3'}")
+        else:
+            expected_name = expected_name.strip()
         if (camera.get("intrinsics") != expected_intrinsics
-                or camera.get("name") != f"camera_logical_{calibration.get('logicalCameraId') or '3'}"
+                or camera.get("name") != expected_name
                 or camera.get("rolling_shutter_readout_s")
                 != float(calibration.get("readoutS") or 0.0105)):
             raise error

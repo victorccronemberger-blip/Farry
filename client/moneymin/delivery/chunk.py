@@ -235,8 +235,27 @@ def _upload_single_chunk(_services,
                 # elapsedRealtimeNanos DO APARELHO DA CONTA — cada upload tem
                 # identidade de sensor própria.
                 sidecar_kwargs: dict[str, Any] = {}
-                if profile is not None:
-                    wall_ms = _services.recorded_at_to_wall_ms(recorded_at)
+                wall_ms = _services.recorded_at_to_wall_ms(recorded_at)
+                from ..mobile import physical_binding as pb
+                from ..mobile.physical_binding import PhysicalDeviceRequiredError
+                if pb.device_mode_requires_physical():
+                    try:
+                        bound = pb.require_campaign_physical_binding(wall_ms=wall_ms)
+                    except PhysicalDeviceRequiredError as exc:
+                        raise _services.UploadError(
+                            str(exc), transient=False, phase="sidecar") from exc
+                    # Full device signature from the connected phone, including
+                    # Brown-Conrady calib and encoder GOP for that SSAID/model.
+                    sidecar_kwargs = {
+                        "uptime_ns": bound["uptime_ns"],
+                        "device_meta": bound["sidecar_device"],
+                        "platform_meta": bound["sidecar_platform"],
+                        "app_version": bound["app_version"],
+                        "calib": bound["calib"],
+                        "frames_gop": bound["frames_gop"],
+                        "imu_seed": bound["device_id"],
+                    }
+                elif profile is not None:
                     sidecar_kwargs = {
                         "calib": profile.calib,
                         "frames_gop": profile.frames_gop,
@@ -519,9 +538,21 @@ def _upload_single_chunk(_services,
             meta["platform"] = {"os": source_platform.get("os", source_platform.get("type"))}
             meta["appVersion"] = _original_capture.metadata["appVersion"]
         else:
-            meta["device"] = _services.default_device_meta(profile)
-            meta["platform"] = _services.default_platform_meta(profile)
-            meta["appVersion"] = _services.config.APP_VERSION
+            from ..mobile import physical_binding as pb
+            from ..mobile.physical_binding import PhysicalDeviceRequiredError
+            if pb.device_mode_requires_physical():
+                try:
+                    bound = pb.require_campaign_physical_binding()
+                except PhysicalDeviceRequiredError as exc:
+                    raise _services.UploadError(
+                        str(exc), transient=False, phase="create") from exc
+                meta["device"] = bound["upload_device"]
+                meta["platform"] = bound["upload_platform"]
+                meta["appVersion"] = bound["app_version"]
+            else:
+                meta["device"] = _services.default_device_meta(profile)
+                meta["platform"] = _services.default_platform_meta(profile)
+                meta["appVersion"] = _services.config.APP_VERSION
 
         # QA local: o backend compara o meta do POST com o sidecar
         # (xcheck.metadata_json_matches_upload) — qualquer drift cai aqui.
@@ -583,7 +614,29 @@ def _upload_single_chunk(_services,
                 # failures may follow an accepted request and must stay private.
                 from ..minute_api import AuthError
                 if isinstance(exc, AuthError):
-                    raise
+                    # Local auth before Minute dispatch must not freeze the
+                    # journal as an uncertain CREATE. Remote-effect AuthError
+                    # (for example refresh after a sent 401) stays uncertain.
+                    if getattr(exc, "remote_effect_possible", False):
+                        raise
+                    code = getattr(exc, "account_issue_code", None)
+                    http_status = getattr(exc, "http_status", None)
+                    blocked = "app_check" if code == "app_check" else None
+                    if not isinstance(http_status, int):
+                        http_status = (
+                            401 if code in {
+                                "authentication", "identity", "access_paused",
+                                "forbidden", "restricted", "app_check",
+                            } or code is None else None)
+                    raise _services.UploadError(
+                        str(exc) or "Autenticação local indisponível antes do CREATE.",
+                        status_code=http_status,
+                        transient=False,
+                        phase="create",
+                        blocked_reason=blocked,
+                        request_not_sent=True,
+                        review_required=False,
+                    ) from None
                 typed = isinstance(exc, _services.UploadError)
                 # A confirmed local App Check refusal never submitted CREATE.
                 if typed and exc.request_not_sent is True:
@@ -749,6 +802,7 @@ def _upload_single_chunk(_services,
         nonlocal complete_progress_attempt
         complete_progress_attempt += 1
         _emit("complete", _services.STATE_COMPLETING, complete_progress_attempt)
+        # network_type is resolved inside complete_upload (device mode → phone).
         return _services.complete_upload(
             session, upload_id, file_size,
             suppress_per_chunk_catbear=suppress_per_chunk_catbear,

@@ -351,6 +351,83 @@ bool appCheckUsbObservationStates() {
       "USB observation used token mutation or left a pending indication after disconnect");
 }
 
+bool appCheckReadFailurePreservesObservation() {
+  FixtureServer fixture;
+  fixture.deferAppCheck = true;
+  ApiClient api;
+  fixture.configure(api);
+  AndroidDevicePanel panel(&api);
+  auto* status = child<QLabel>(panel, "androidAppCheckStatus");
+  auto* token = child<QLabel>(panel, "androidAppCheckTokenPrefix");
+  auto* provider = child<QLabel>(panel, "androidAppCheckProvider");
+  auto* refresh = child<QPushButton>(panel, "androidRefreshButton");
+  auto* timer = child<QTimer>(panel, "androidAppCheckTimer");
+  QJsonObject available{{"configured", true}, {"token_available", true}, {"source", "device"},
+      {"device", QJsonObject{{"enabled", true}, {"serial", "fixture-usb-A"},
+          {"provider", "fixture-provider"}, {"token_len", 800},
+          {"left_s", 1200}, {"token_available", true}}}};
+  panel.setServiceAvailable(true);
+  panel.show();
+  if (!require(waitUntil([&] { return fixture.requests.size() == 1
+      && fixture.appCheckRequests.size() == 1; }), "Observation fixture reads missing")) return false;
+  fixture.respond(0, connectedSnapshot());
+  fixture.respondAppCheck(0, available);
+  if (!require(waitUntil([&] { return refresh->isEnabled() && token->text().contains("800"); }),
+      "Initial observation not rendered")) return false;
+
+  for (int failure = 0; failure < 2; ++failure) {
+    QMetaObject::invokeMethod(timer, "timeout", Qt::DirectConnection);
+    if (!require(waitUntil([&] { return fixture.appCheckRequests.size() == failure + 2; }),
+        "Failure fixture status read missing")) return false;
+    // The second response is HTTP 200 with an incomplete schema, not a status.
+    fixture.respondAppCheck(failure + 1, {}, failure == 0 ? 503 : 200);
+    if (!require(waitUntil([&] { return refresh->isEnabled(); })
+        && status->property("appCheckState").toString() == "error"
+        && status->property("statusReadFailed").toBool()
+        && status->text().contains(QStringLiteral("desatualizada"))
+        && token->text().contains("800") && token->property("observationStale").toBool()
+        && !token->text().contains(QStringLiteral("utilizável"))
+        && child<QLabel>(panel, "androidAppCheckValidity")->text().contains(QStringLiteral("última consulta"))
+        && provider->text() == "fixture-provider", "Status failure erased or endorsed cached metadata")) return false;
+    const int usbReads = fixture.requests.size();
+    if (!require(invokeUsbEvent(panel)
+        && waitUntil([&] { return fixture.requests.size() == usbReads + 1; }),
+        "Independent USB observation missing")) return false;
+    fixture.respond(usbReads, connectedSnapshot());
+    if (!require(waitUntil([&] { return refresh->isEnabled(); })
+        && status->property("statusReadFailed").toBool()
+        && status->property("appCheckState").toString() == "error"
+        && token->text().contains("800"), "USB success hid the failed status observation")) return false;
+  }
+
+  auto disconnected = stateSnapshot(QStringLiteral("disconnected"));
+  disconnected.insert("selected_serial", "fixture-usb-A");
+  panel.renderSnapshot(disconnected);
+  if (!require(!token->text().contains("800"), "Disconnection restored unconfirmed metadata")) return false;
+  panel.renderSnapshot(connectedSnapshot(QStringLiteral("fixture-usb-B")));
+  if (!require(!token->text().contains("800") && provider->text() != "fixture-provider",
+      "Status failure attributed old metadata to another phone")) return false;
+  panel.renderSnapshot(connectedSnapshot());
+  QMetaObject::invokeMethod(timer, "timeout", Qt::DirectConnection);
+  if (!require(waitUntil([&] { return fixture.appCheckRequests.size() == 4; }),
+      "Recovery status read missing")) return false;
+  fixture.respondAppCheck(3, available);
+  if (!require(waitUntil([&] { return refresh->isEnabled(); })
+      && !status->property("statusReadFailed").toBool()
+      && !status->toolTip().contains(QStringLiteral("Não foi possível confirmar"))
+      && !token->property("observationStale").toBool()
+      && status->property("appCheckState").toString() == "device",
+      "Fresh status failed to clear observation warning")) return false;
+  QMetaObject::invokeMethod(timer, "timeout", Qt::DirectConnection);
+  if (!require(waitUntil([&] { return fixture.appCheckRequests.size() == 5; }),
+      "Confirmed absence read missing")) return false;
+  fixture.respondAppCheck(4, {{"configured", true}, {"token_available", false}});
+  return require(waitUntil([&] { return refresh->isEnabled(); }) && !token->text().contains("800")
+      && !status->property("statusReadFailed").toBool()
+      && fixture.recheckRequests.isEmpty() && fixture.onlyDiagnosticReads(),
+      "Fresh absence was ignored or the read-only scenario emitted a mutation");
+}
+
 bool appCheckSelectionRefresh() {
   FixtureServer fixture;
   fixture.deferAppCheck = true;
@@ -452,6 +529,7 @@ bool appCheckActionFeedback() {
   const QList<QJsonObject> replies{
       {{"ok", false}, {"message", "Aguarde 30 segundos."}, {"appcheck", unavailable}},
       {},
+      {{"ok", true}, {"appcheck", QJsonObject{}}},
       {{"ok", true}, {"appcheck", unavailable}},
       {{"ok", true}, {"message", "Token disponível; aceitação depende do serviço."}, {"appcheck", available}}};
   for (int i = 0; i < replies.size(); ++i) {
@@ -470,10 +548,13 @@ bool appCheckActionFeedback() {
     if (!require(feedback->property("actionState").toString() == expected
         && !feedback->text().contains("renovado com sucesso"), "HTTP success was mistaken for renewal")) return false;
     if (i == 0 && !require(feedback->text().contains("Aguarde 30 segundos"), "Backend reason hidden")) return false;
+    if (i == 2 && !require(child<QLabel>(panel, "androidAppCheckStatus")
+        ->property("statusReadFailed").toBool(), "Partial action status cleared the observation warning")) return false;
   }
+  const int actionCount = replies.size();
   refresh->click();
-  if (!require(waitUntil([&] { return fixture.recheckRequests.size() == 5; }), "Error action missing")) return false;
-  fixture.respondRecheck(4, {{"error", "Serviço temporariamente indisponível."}}, 503);
+  if (!require(waitUntil([&] { return fixture.recheckRequests.size() == actionCount + 1; }), "Error action missing")) return false;
+  fixture.respondRecheck(actionCount, {{"error", "Serviço temporariamente indisponível."}}, 503);
   if (!require(waitUntil([&] { return refresh->isEnabled(); })
       && feedback->text().contains("Serviço temporariamente indisponível"), "HTTP error detail hidden")) return false;
   const QString failure = feedback->text();
@@ -483,10 +564,10 @@ bool appCheckActionFeedback() {
   if (!require(waitUntil([&] { return refresh->isEnabled(); }) && feedback->text() == failure,
       "Polling erased the last action failure")) return false;
   refresh->click();
-  if (!require(waitUntil([&] { return fixture.recheckRequests.size() == 6; }), "Navigation fixture action missing")) return false;
+  if (!require(waitUntil([&] { return fixture.recheckRequests.size() == actionCount + 2; }), "Navigation fixture action missing")) return false;
   panel.hide();
   panel.show();
-  fixture.respondRecheck(5, replies.last());
+  fixture.respondRecheck(actionCount + 1, replies.last());
   if (!require(waitUntil([&] { return fixture.appCheckRequests.size() == 3; })
       && feedback->isHidden(), "Late action response survived navigation")) return false;
   fixture.respondAppCheck(2, available);
@@ -1001,6 +1082,7 @@ int main(int argc, char** argv) {
   if (app.arguments().contains(QStringLiteral("--preview"))) return preview(app, app.arguments());
   if (!appCheckStates()) return 8;
   if (!appCheckUsbObservationStates()) return 12;
+  if (!appCheckReadFailurePreservesObservation()) return 13;
   if (!appCheckSelectionRefresh()) return 11;
   if (!appCheckLifecycle()) return 9;
   if (!appCheckActionFeedback()) return 10;

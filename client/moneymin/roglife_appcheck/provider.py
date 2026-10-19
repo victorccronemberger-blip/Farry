@@ -30,7 +30,18 @@ _live: dict | None = None
 _TOKEN_CACHE_KEYS = (
     "token", "iat", "exp", "provider", "left", "obtained_at_iso",
     "method", "source", "valido_ate_iso",
+    # Status-only fields must never be persisted as if they authorized a JWT.
+    "token_source", "token_available", "token_len", "left_s",
 )
+
+
+def device_mode_explicitly_disabled() -> bool:
+    """True only when SOURCE/DEVICE env forbids Play Integrity device capture."""
+    source = os.environ.get(_SOURCE_ENV, "").strip().casefold()
+    if source in {"off", "0", "false", "no", "bearer", "debug", "none"}:
+        return True
+    flag = os.environ.get(_DEVICE_FLAG_ENV, "").strip().casefold()
+    return flag in {"0", "false", "no", "off"}
 
 
 def device_mode_enabled() -> bool:
@@ -42,15 +53,55 @@ def device_mode_enabled() -> bool:
     source = os.environ.get(_SOURCE_ENV, "").strip().casefold()
     if source in {"device", "physical", "roglife", "play_integrity"}:
         return True
-    if source in {"off", "0", "false", "no", "bearer", "debug", "none"}:
+    if device_mode_explicitly_disabled():
         return False
     flag = os.environ.get(_DEVICE_FLAG_ENV, "").strip().casefold()
     if flag in {"1", "true", "yes", "on"}:
         return True
-    if flag in {"0", "false", "no", "off"}:
-        return False
     local = os.environ.get("QMONEY_LOCAL_EDITION", "").strip().casefold()
     return local in {"1", "true", "yes", "on"}
+
+
+def ensure_device_defaults_for_writes() -> dict:
+    """Activate device App Check defaults for campaign/write paths.
+
+    Does not override an explicit off/bearer/debug choice. When SOURCE/DEVICE
+    are unset (typical bare CLI), sets SOURCE=device. When ADB serial is unset,
+    prefers the last known physical serial from the identity cache, then
+    ANDROID_SERIAL. Returns a small activation report for diagnostics.
+    """
+    report = {
+        "enabled": False,
+        "activated_source": False,
+        "activated_serial": False,
+        "explicitly_disabled": device_mode_explicitly_disabled(),
+        "serial": None,
+    }
+    if report["explicitly_disabled"]:
+        return report
+
+    # Empty SOURCE counts as unset (setdefault would keep "").
+    if not device_mode_enabled():
+        os.environ[_SOURCE_ENV] = "device"
+        report["activated_source"] = True
+
+    if not os.environ.get(_SERIAL_ENV, "").strip():
+        serial = None
+        raw = _read_cache_file() or {}
+        cached = raw.get("serial")
+        if isinstance(cached, str) and cached.strip():
+            serial = cached.strip()
+        if not serial:
+            android = os.environ.get("ANDROID_SERIAL", "").strip()
+            if android:
+                serial = android
+        if serial:
+            os.environ[_SERIAL_ENV] = serial
+            report["activated_serial"] = True
+
+    report["enabled"] = device_mode_enabled()
+    report["serial"] = os.environ.get(_SERIAL_ENV, "").strip() or None
+    return report
 
 
 def cache_path() -> Path:
@@ -211,9 +262,13 @@ def physical_uptime_ns() -> int | None:
 
 
 def _write_cache(payload: dict) -> Path:
+    """Persist identity props only; JWT/status authority fields are stripped."""
     path = cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(
+        json.dumps(_identity_only(payload), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -223,6 +278,7 @@ def _merge_device_fields(base: dict, info: dict) -> dict:
         "serial", "device_id", "model", "manufacturer", "brand", "product_device",
         "system_name", "system_version", "sdk_int", "uptime_ns",
         "app_version", "app_version_code", "collected_at_unix",
+        "network_type", "location",
     ):
         if key in info:
             out[key] = info[key]
@@ -284,18 +340,44 @@ def status_snapshot() -> dict:
     }
 
 
-def obtain_token(*, force: bool = False, serial: str | None = None) -> str | None:
-    """JWT Play Integrity sempre via ADB no aparelho; nunca autoriza a partir de disco."""
+def obtain_token(
+    *,
+    force: bool = False,
+    serial: str | None = None,
+    bypass_live_session: bool = False,
+) -> str | None:
+    """JWT Play Integrity via ADB; disco nunca autoriza.
+
+    Sem ``force`` e sem ``bypass_live_session``, reutiliza a sessão ADB deste
+    processo enquanto estiver acima do piso (~10 min). Lotes de campanha passam
+    ``bypass_live_session=True`` para reler o telefone a cada lote. ``force``
+    reinicia o Minute quando as prefs do aparelho estão curtas/ausentes.
+    """
     global _live
     if not device_mode_enabled():
         return None
 
     with _lock:
         cfg = load_config()
+        min_left = int(cfg.get("min_appcheck_left_s", 600))
         package = str(cfg.get("package") or "com.bakerdata.minute")
         chosen = serial or os.environ.get(_SERIAL_ENV, "").strip() or None
-        device = pick_device(cfg, chosen)
 
+        if not force and not bypass_live_session:
+            cached = read_cached_token(min_left_s=min_left)
+            if cached and isinstance(cached.get("token"), str):
+                os.environ["FIREBASE_APP_CHECK_BEARER"] = cached["token"]
+                return cached["token"]
+
+        if not chosen:
+            # Identity cache / ANDROID_SERIAL already applied by write defaults;
+            # still prefer a cached physical serial when callers skip defaults.
+            raw = _read_cache_file() or {}
+            cached_serial = raw.get("serial")
+            if isinstance(cached_serial, str) and cached_serial.strip():
+                chosen = cached_serial.strip()
+
+        device = pick_device(cfg, chosen)
         # Props do telefone: sempre atualiza (uptime muda; model/sdk são baratos).
         info = collect_device_info(device, package=package)
 

@@ -14,6 +14,9 @@ if ($Active) {
 if (-not (Test-Path -LiteralPath $Executable)) {
     throw 'Distribuicao local ausente. Execute scripts\build_local.ps1 para instalar o aplicativo e as bibliotecas Qt.'
 }
+# O motor da campanha (moneymin, Python) roda direto do codigo-fonte desta
+# copia; alteracoes em .py valem na proxima abertura, sem recompilar. Aqui so
+# promovemos um QMoney.exe compilado manualmente, quando ele for mais novo.
 $Candidate = $null
 if (Test-Path -LiteralPath $Pending) { $Candidate = Get-Item -LiteralPath $Pending }
 if (Test-Path -LiteralPath $Built) {

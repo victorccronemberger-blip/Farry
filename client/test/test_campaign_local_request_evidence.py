@@ -13,7 +13,8 @@ class CampaignLocalRequestEvidenceTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.fixture.stack.enter_context(patch.object(
-            appcheck, "ensure_app_check_fresh", return_value={}))
+            appcheck, "ensure_app_check_fresh",
+            return_value={"token_available": True, "configured": True}))
 
     def test_each_receiptless_attempt_requires_its_own_local_evidence(self):
         for markers, review in (

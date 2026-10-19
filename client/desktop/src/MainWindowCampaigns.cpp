@@ -580,8 +580,13 @@ void MainWindow::startCampaign() {
   _campaignStart->setText(QStringLiteral("Executando preflight…"));
   const QString preflightRequestId = QUuid::createUuid().toString(QUuid::WithoutBraces)
       .remove(QLatin1Char('-')).toLower();
+  const int preflightGeneration = _operationBackendGeneration;
   _api.post(QStringLiteral("/api/campaigns/preflight?async=1&request_id=%1").arg(preflightRequestId), body,
-            [this, body, selectedAccountNames](bool ok, const QJsonDocument& doc, const QString& error) {
+            [this, body, selectedAccountNames, preflightGeneration](bool ok, const QJsonDocument& doc, const QString& error) {
+    // Stale replies after backend generation change or app close must not reopen review UI.
+    if (_closing || preflightGeneration != _operationBackendGeneration) {
+      return;
+    }
     _campaignVerifying = false;
     _campaignVerificationWatch.stop();
     _campaignVerificationPanel->hide();
@@ -1254,6 +1259,22 @@ void MainWindow::loadAcceleratorSnapshot(bool passive) {
                 .arg(QLocale().toString(usedGb, 'f', 1)).arg(budgetGb).arg(ready).arg(partial).arg(pending)
           : QStringLiteral("%1 prontos · %2 parciais · %3 pendentes")
                 .arg(ready).arg(partial).arg(pending));
+    }
+    if (provider == QStringLiteral("holoassist") && cache.value(QStringLiteral("category_review_summary")).isObject()) {
+      const auto reviews = cache.value(QStringLiteral("category_review_summary")).toObject();
+      _cacheNumbers->setText(_cacheNumbers->text()
+          + QStringLiteral("\nCategorias: %1 confirmadas na revisão · %2 aguardando revisão visual")
+              .arg(reviews.value(QStringLiteral("confirmed")).toInt())
+              .arg(reviews.value(QStringLiteral("pending")).toInt()));
+      QStringList reviewedSources;
+      for (const auto& value : reviews.value(QStringLiteral("confirmed_sources")).toArray()) {
+        const auto source = value.toObject();
+        reviewedSources << source.value(QStringLiteral("clip_uid")).toString();
+      }
+      _cacheNumbers->setToolTip(reviewedSources.join(QStringLiteral("\n"))
+          + QStringLiteral("\nCategoria confirmada para a fonte revisada. O vínculo com o arquivo local e a prontidão técnica são verificações separadas."));
+    } else {
+      _cacheNumbers->setToolTip(QString());
     }
     if (!running && catalogError.isEmpty() && lastStatus.isEmpty()
         && provider == QStringLiteral("ego4d") && _cacheBudget->value() == 0)

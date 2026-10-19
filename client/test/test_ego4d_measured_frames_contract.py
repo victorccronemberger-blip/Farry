@@ -78,6 +78,11 @@ class Ego4dCampaignMeasuredFrameTests(unittest.TestCase):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         # Frame contract only; selection/provenance boundaries are inert here.
+        # Authentication is a separate contract; this test must reach the PTS
+        # gate without attempting phone capture or waiting for token renewal.
+        from moneymin import appcheck
+        self.stack.enter_context(patch.object(appcheck, 'ensure_app_check_fresh',
+            return_value={'token_available': True}))
         self.stack.enter_context(patch.object(campaign.ego4d,
             'revalidate_selection_evidence', return_value={'schema': 1, 'physical_provenance_verified': False}, create=True))
         self.stack.enter_context(patch.object(campaign.org_policy, 'account_kind', return_value='other'))

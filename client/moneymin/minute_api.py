@@ -380,6 +380,12 @@ def _write_operation_phase(method: str, path: str) -> str | None:
     return "write"
 
 
+def _device_appcheck_renewable() -> bool:
+    """True when the connected phone can mint App Check tokens for writes."""
+    from . import roglife_appcheck
+    return bool(roglife_appcheck.device_mode_enabled())
+
+
 def require_app_check_for_write(method: str, path: str) -> dict[str, str]:
     """Attach App Check, or report that the target write was not sent."""
     from . import appcheck
@@ -389,6 +395,15 @@ def require_app_check_for_write(method: str, path: str) -> dict[str, str]:
     appcheck_header = appcheck.get_app_check_header()
     if phase is None or appcheck_header:
         return appcheck_header
+
+    # Device mode: a missing/expired token is renewable from the connected
+    # phone. Renew once (soft read; Minute restart below the floor) so an
+    # in-flight campaign never dies on a write that could be authorized.
+    if _device_appcheck_renewable():
+        appcheck.ensure_app_check_fresh()
+        appcheck_header = appcheck.get_app_check_header()
+        if appcheck_header:
+            return appcheck_header
 
     status = appcheck.app_check_status()
     diagnostic = status.get("diagnostic") or {}
@@ -900,19 +915,30 @@ def _refresh(token_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _align_physical_device_headers(headers: dict[str, str]) -> None:
-    """No modo device, headers vêm do S22 (SSAID + versionName do Minute)."""
-    try:
-        from . import roglife_appcheck
-        if not roglife_appcheck.device_mode_enabled():
-            return
-        device_id = roglife_appcheck.physical_device_id()
-        if device_id:
-            headers["X-Device-Id"] = device_id
-        app_version = roglife_appcheck.physical_app_version()
-        if app_version:
-            headers["X-App-Version"] = app_version
-    except Exception:
+    """No modo device, headers de aparelho vêm só do celular físico conectado.
+
+    ``User-Agent`` permanece o literal OkHttp do APK (igual em todos os
+    aparelhos). ``X-Device-Location`` só entra com amostra GPS do telefone;
+    coordenadas de perfil/env nunca são reutilizadas em modo device.
+    """
+    from .mobile import physical_binding as pb
+    from .mobile.physical_binding import PhysicalDeviceRequiredError
+    from . import roglife_appcheck
+
+    if not roglife_appcheck.device_mode_enabled():
         return
+    try:
+        bound = pb.require_campaign_physical_binding()
+    except PhysicalDeviceRequiredError as exc:
+        raise AuthError(str(exc), code="device") from exc
+    headers["X-Device-Id"] = bound["device_id"]
+    headers["X-App-Version"] = bound["app_version"]
+    headers["User-Agent"] = bound["user_agent"]
+    location = bound.get("location_header")
+    if isinstance(location, str) and location.strip():
+        headers["X-Device-Location"] = location.strip()
+    else:
+        headers.pop("X-Device-Location", None)
 
 
 # --- Sessão ------------------------------------------------------------------
@@ -1080,14 +1106,21 @@ class Session:
             return status, text
         # authedFetch do APK 1.29.0 repete uma vez após renovar o Bearer.
         # O segundo 401 permanece uma rejeição; não autoriza outro pedido.
+        # The first Minute request was already dispatched; auth failures from
+        # here on cannot claim request_not_sent for that operation.
         self._refreshing = True
         try:
             try:
                 self.refresh()
-            except AuthError:
+            except AuthError as exc:
+                exc.remote_effect_possible = True
                 raise
-            self._check_write_policy(method, path, body)
-            headers["Authorization"] = f"Bearer {self._bearer()}"
+            try:
+                self._check_write_policy(method, path, body)
+                headers["Authorization"] = f"Bearer {self._bearer()}"
+            except AuthError as exc:
+                exc.remote_effect_possible = True
+                raise
             status2, text2 = _request(
                 config.BASE_URL + path, method, headers=headers, body=body)
             if status2 == 403:
@@ -1129,14 +1162,20 @@ class Session:
                        for key, value in response.headers.items())
                 or getattr(self, "_refreshing", False)):
             return response
+        # First Minute request already dispatched; later AuthError is uncertain.
         self._refreshing = True
         try:
             try:
                 self.refresh()
-            except AuthError:
+            except AuthError as exc:
+                exc.remote_effect_possible = True
                 raise
-            self._check_write_policy(method, path, body)
-            headers["Authorization"] = f"Bearer {self._bearer()}"
+            try:
+                self._check_write_policy(method, path, body)
+                headers["Authorization"] = f"Bearer {self._bearer()}"
+            except AuthError as exc:
+                exc.remote_effect_possible = True
+                raise
             refreshed = _request_detailed(
                 config.BASE_URL + path, method, headers=headers, body=body)
             if refreshed.status == 403:
@@ -1533,10 +1572,27 @@ class Session:
                    opened_at: str | None = None) -> tuple[int, str]:
         """POST /api/v1/app/opened — telemetria de abertura do app.
 
-        Método legado, não usado na inicialização do cliente Windows.
-        O evento descreve uma abertura do app Android e depende de dados
-        verdadeiros de execução; não deve ser usado para simular atividade.
+        Em modo device o corpo (app_version/device_model/os_version) vem do
+        celular físico conectado. Fora do modo device usa o perfil da conta.
         """
+        from .mobile import physical_binding as pb
+        from .mobile.physical_binding import PhysicalDeviceRequiredError
+
+        if pb.device_mode_requires_physical():
+            try:
+                bound = pb.require_campaign_physical_binding()
+            except PhysicalDeviceRequiredError as exc:
+                raise AuthError(str(exc), code="device") from exc
+            opened = bound["opened"]
+            body: dict[str, Any] = {
+                "auth_method": auth_method,
+                "app_version": opened["app_version"],
+                "device_model": opened["device_model"],
+                "os_version": opened["os_version"],
+            }
+            if opened_at:
+                body["opened_at"] = opened_at
+            return self.post("/api/v1/app/opened", body)
         if not self.email:
             return -1, "ERRO: sessão sem e-mail (perfil de aparelho ausente)"
         profile = device_profile.get_profile(self.email)

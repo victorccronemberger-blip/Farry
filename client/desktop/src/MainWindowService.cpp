@@ -242,6 +242,13 @@ void MainWindow::startBackend() {
   if (!environment.contains(QStringLiteral("QMONEY_APPCHECK_SOURCE"))) {
     environment.insert(QStringLiteral("QMONEY_APPCHECK_SOURCE"), QStringLiteral("device"));
   }
+  // Prefer an explicit ADB serial when the shell/session already pinned one.
+  if (!environment.contains(QStringLiteral("QMONEY_APPCHECK_ADB_SERIAL"))) {
+    const QString androidSerial = environment.value(QStringLiteral("ANDROID_SERIAL")).trimmed();
+    if (!androidSerial.isEmpty()) {
+      environment.insert(QStringLiteral("QMONEY_APPCHECK_ADB_SERIAL"), androidSerial);
+    }
+  }
   const QString localApiToken = QUuid::createUuid().toString(QUuid::Id128)
                                 + QUuid::createUuid().toString(QUuid::Id128);
   environment.insert(QStringLiteral("QMONEY_LOCAL_API_TOKEN"), localApiToken);

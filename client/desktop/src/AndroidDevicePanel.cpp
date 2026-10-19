@@ -20,6 +20,12 @@
 #include <QVBoxLayout>
 
 namespace {
+bool validAppCheckObservation(const QJsonObject& status) {
+  return status.value(QStringLiteral("device")).isObject()
+      && status.value(QStringLiteral("configured")).isBool()
+      && status.value(QStringLiteral("token_available")).isBool();
+}
+
 class PhoneIllustration final : public QWidget {
 public:
   explicit PhoneIllustration(QWidget* parent) : QWidget(parent) {
@@ -306,6 +312,7 @@ void AndroidDevicePanel::renderAppCheckStatus(const QJsonObject& status) {
                                              : QStringLiteral("Sem dados confirmados deste aparelho"));
       field->setToolTip(QString{});
     }
+    updateAppCheckObservationState();
     return;
   }
 
@@ -403,6 +410,36 @@ void AndroidDevicePanel::renderAppCheckStatus(const QJsonObject& status) {
     _appCheckTokenPrefix->setText(QStringLiteral("Não disponível"));
     _appCheckDeviceId->setToolTip(QString());
   }
+  updateAppCheckObservationState();
+}
+
+void AndroidDevicePanel::updateAppCheckObservationState() {
+  _appCheckStatus->setProperty("statusReadFailed", _appCheckStatusReadFailed);
+  for (auto* field : {_appCheckDeviceId, _appCheckProvider, _appCheckValidity, _appCheckTokenPrefix})
+    field->setProperty("observationStale", _appCheckStatusReadFailed);
+  if (!_appCheckStatusReadFailed) return;
+
+  const QString warning = QStringLiteral(
+      "Não foi possível confirmar o estado atual. Os dados exibidos pertencem à última consulta recebida.");
+  _appCheckStatus->setToolTip(warning);
+  const QString association = _appCheckStatus->property("appCheckState").toString();
+  // Keep selection/disconnection warnings and never restore another phone's data.
+  if (association == QStringLiteral("selection_required")
+      || association == QStringLiteral("unassociated")
+      || association == QStringLiteral("other_device")
+      || (association == QStringLiteral("usb_unconfirmed")
+          && _connectionState != QStringLiteral("connected"))) return;
+  const QJsonObject device = _appCheckSnapshot.value(QStringLiteral("device")).toObject();
+  const int tokenLength = device.value(QStringLiteral("token_len")).toInt();
+  if (tokenLength > 0)
+    _appCheckTokenPrefix->setText(QStringLiteral(
+        "JWT na última consulta (%1 caracteres) · uso atual não confirmado").arg(tokenLength));
+  if (device.value(QStringLiteral("left_s")).isDouble())
+    _appCheckValidity->setText(_appCheckValidity->text() + QStringLiteral(" (na última consulta)"));
+  _appCheckStatus->setText(_appCheckSnapshot.isEmpty()
+      ? QStringLiteral("App Check: não foi possível atualizar")
+      : QStringLiteral("App Check: consulta indisponível · última consulta preservada (desatualizada)"));
+  _appCheckStatus->setProperty("appCheckState", QStringLiteral("error"));
 }
 
 void AndroidDevicePanel::setServiceAvailable(bool available) {
@@ -412,6 +449,7 @@ void AndroidDevicePanel::setServiceAvailable(bool available) {
   ++_generation;
   _refreshQueued = false;
   if (!available) {
+    _appCheckStatusReadFailed = false;
     ++_appCheckRequest;
     _appCheckActionStatus->clear();
     _appCheckActionStatus->hide();
@@ -558,12 +596,13 @@ void AndroidDevicePanel::requestAppCheckStatus() {
       return;
     }
     if (!panel->_serviceAvailable || !panel->isVisible()) return;
-    if (ok && document.isObject() && document.object().contains(QStringLiteral("device"))) {
+    const QJsonObject status = document.object();
+    if (ok && document.isObject() && validAppCheckObservation(status)) {
+      panel->_appCheckStatusReadFailed = false;
       panel->renderAppCheckStatus(document.object());
     } else {
-      panel->renderAppCheckStatus({});
-      panel->_appCheckStatus->setText(QStringLiteral("App Check: não foi possível atualizar"));
-      panel->_appCheckStatus->setProperty("appCheckState", QStringLiteral("error"));
+      panel->_appCheckStatusReadFailed = true;
+      panel->renderAppCheckStatus(panel->_appCheckSnapshot);
     }
   });
 }
@@ -590,10 +629,17 @@ void AndroidDevicePanel::requestAppCheckRefresh() {
     if (!panel->_serviceAvailable || !panel->isVisible()) return;
     const QJsonObject result = document.object();
     const QJsonObject status = result.value(QStringLiteral("appcheck")).toObject();
-    const bool confirmed = ok && result.value(QStringLiteral("ok")) == QJsonValue(true)
+    const bool validStatus = ok && result.value(QStringLiteral("appcheck")).isObject()
+        && validAppCheckObservation(status);
+    const bool confirmed = validStatus && result.value(QStringLiteral("ok")) == QJsonValue(true)
         && status.value(QStringLiteral("token_available")) == QJsonValue(true);
-    if (ok && result.value(QStringLiteral("appcheck")).isObject())
+    if (validStatus) {
+      panel->_appCheckStatusReadFailed = false;
       panel->renderAppCheckStatus(status);
+    } else if (ok && result.value(QStringLiteral("appcheck")).isObject()) {
+      panel->_appCheckStatusReadFailed = true;
+      panel->renderAppCheckStatus(panel->_appCheckSnapshot);
+    }
     QString message = result.value(QStringLiteral("message")).toString().trimmed();
     if (message.isEmpty() && !confirmed) message = error.trimmed();
     if (message.isEmpty()) message = confirmed

@@ -1,0 +1,411 @@
+{
+  "source": "Finally - Copia",
+  "source_base_commit": "c8db8b4fa0f974ced026c757734aacee20f75496",
+  "includes_uncommitted_user_changes": true,
+  "transport_only_no_business_edits": true,
+  "preserved_farry_server_and_launcher": true,
+  "excluded_local_ci_and_audit_notes": true,
+  "changed_files": [
+    {
+      "path": "ABRIR_QFAR_LOCAL.cmd",
+      "sha256": "be7f32a931597c4da2a6afc7342f879f3f7a755d899cd9d2f0255a3c60908b3a"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "bc2a22f3793cb683955fe8baad16f42d144d9709a936068b814962fb9982b7d2"
+    },
+    {
+      "path": "MODULOS.md",
+      "sha256": "1865599a738a8e02c9c14fca9dd0aea44fe1328d21c4d5be50abe51e55d5e13b"
+    },
+    {
+      "path": "app/examples/refresh_device_appcheck.py",
+      "sha256": "ac348ee22747b5569f897cf3bf3dd15bcc1aa70adf07a1c7cf1765b0a6f6db9e"
+    },
+    {
+      "path": "desktop/CMakeLists.txt",
+      "sha256": "f8a1af9de924b6b95cf4f7a4bb883561b8fd1f9c60ea06b2f52c5da48084e6eb"
+    },
+    {
+      "path": "desktop/src/AndroidDevicePanel.cpp",
+      "sha256": "d710c43f247df822f3872f79f101b3d91aedc6f55e3dffeda442db4987d477e5"
+    },
+    {
+      "path": "desktop/src/AndroidDevicePanel.hpp",
+      "sha256": "13b1244b305b8937ae66ee32c8a88f1c586e45cc8aa5a3c3ec3dd342840652bd"
+    },
+    {
+      "path": "desktop/src/ApiClient.cpp",
+      "sha256": "32199bc29aa94204337a63dc0ee2a022690d668fe05c4a12275583b8e73b4540"
+    },
+    {
+      "path": "desktop/src/MainWindowCampaigns.cpp",
+      "sha256": "b973276acdc47430bce5a8870f425d425f7b189505d03494da92321d6ef1a542"
+    },
+    {
+      "path": "desktop/src/MainWindowIntegrations.cpp",
+      "sha256": "2aa94d7fd4947dfe1ec3c87b92924e37f7db4bdeab8079c46c904f7bb3c43a73"
+    },
+    {
+      "path": "desktop/src/MainWindowLibrary.cpp",
+      "sha256": "c855f89a0617dcbdd9ebb5e483d2ee4af4b60977e139cc4520dc4cb4aad9fd87"
+    },
+    {
+      "path": "desktop/src/MainWindowMobile.cpp",
+      "sha256": "24d880b23211fe4276ddbff4cc7173b11716e0cd167f8f326bd43059bbb614e8"
+    },
+    {
+      "path": "desktop/src/MainWindowModules.md",
+      "sha256": "dcba744cfb81d0f4f3b38349cb4ae23bbfc29480a08908077895e84bc6499119"
+    },
+    {
+      "path": "desktop/src/MainWindowService.cpp",
+      "sha256": "04b55e83eb2ca41a72c82df78c95db581ef071015594b3613dcea0c74f03d3cf"
+    },
+    {
+      "path": "docs/modularizacao/CELULAR.md",
+      "sha256": "80f7d104ef0278ba192dd7577f8718bda26de9cdaefc4ccff63426b985f38509"
+    },
+    {
+      "path": "moneymin/account_providers.py",
+      "sha256": "898609defa1fdbce6cab41c4512699a0983434c373e0e7770f5b0d95fed8e5b2"
+    },
+    {
+      "path": "moneymin/appcheck.py",
+      "sha256": "cac140e377e2310f49ffc6627d4ce56d2caac8c4c163912910c15f140781139f"
+    },
+    {
+      "path": "moneymin/campaign.py",
+      "sha256": "189cf3808b95000e6d1ccd1fc74404f114f3184b3995c95895ce1aec31185654"
+    },
+    {
+      "path": "moneymin/campaign_types.py",
+      "sha256": "63f35988b19dcb873eca6f3fb639e93894fd1bd2746a4948e490d9bb29122b9a"
+    },
+    {
+      "path": "moneymin/campaigns/account_delivery.py",
+      "sha256": "e03ce879d53432b040e9a719c988395bfc9d1d962343adbafc9f3a8928ad5363"
+    },
+    {
+      "path": "moneymin/campaigns/execution.py",
+      "sha256": "34f1f99f48e8489def962e71aaa5d0770289a5c563645aa282a9e49f62f565f8"
+    },
+    {
+      "path": "moneymin/campaigns/preparation_engine.py",
+      "sha256": "8f580a2e997ead5304e9880f2c5b0cafebfd4b8fbd48ddf48e99a40ccf2a6f4e"
+    },
+    {
+      "path": "moneymin/campaigns/workers.py",
+      "sha256": "71a56145e26c8225975bd1134fa9c38e44f89068438e74a83652cc7c57a79137"
+    },
+    {
+      "path": "moneymin/content_provenance.py",
+      "sha256": "55e0262d033a740c940560662a91f146357ab346ec35a38814416d72365af3bf"
+    },
+    {
+      "path": "moneymin/delivery/admission.py",
+      "sha256": "f5834045756c021a3fa687618b262d95260f2eb1d97785c7bb5f58bbb67f8e8f"
+    },
+    {
+      "path": "moneymin/delivery/chunk.py",
+      "sha256": "10c5cd4b7cde78494e0a0343b421df11483976f1de853fd982819699d5550979"
+    },
+    {
+      "path": "moneymin/delivery/journal.py",
+      "sha256": "afc83e944312dbfaf1ec558f6ace2b2ff4547096ec7ea1c1b7e55c16e5f43294"
+    },
+    {
+      "path": "moneymin/delivery/media.py",
+      "sha256": "81b1cbb976fa1a8cc1bed867a1a30d8b1d51847220eff68d0089b027acd5dee8"
+    },
+    {
+      "path": "moneymin/delivery/protocol.py",
+      "sha256": "99b743e3dee8f3ce8d8d768c0630affbda058eab77d235f95575e4a1812a5a82"
+    },
+    {
+      "path": "moneymin/ego4d.py",
+      "sha256": "b577c10907cc0ceabfa3fc6ef8208cae39e6e296ccfd47c8807655b8ac761d0d"
+    },
+    {
+      "path": "moneymin/holo_accelerator.py",
+      "sha256": "acbba95b0d5ae5e3068fe026edaf186e7922ee957a5199a8d51ed83c60869700"
+    },
+    {
+      "path": "moneymin/holoassist.py",
+      "sha256": "5b15eb3218e303360bba82db33624c95ea9e20b959ea3aaaf7ebfab2a7c224cb"
+    },
+    {
+      "path": "moneymin/integrations/android_diagnostics.py",
+      "sha256": "fbf9fcd8096f4fc06661ffebdc3dad4f065d6f3e713640d21c05a17e9fe31699"
+    },
+    {
+      "path": "moneymin/minute_api.py",
+      "sha256": "1366c65e3abeb5ec21485c250c71c3af11bde7f846edafe7d172f31bb23f4b1a"
+    },
+    {
+      "path": "moneymin/mobile/__init__.py",
+      "sha256": "8b8cfb386c539559cfd1d9aff8a169c099d8ee1485d78334ca623da9ccc0272e"
+    },
+    {
+      "path": "moneymin/mobile/android/__init__.py",
+      "sha256": "0ce5401debe1a8693fd4aef9ad5043451253a25374a6d4ae238a2043df10a3cc"
+    },
+    {
+      "path": "moneymin/mobile/android/diagnostics.py",
+      "sha256": "e849aab18a924269281ececf655041d68c88640995ee88e2550123387d984ba4"
+    },
+    {
+      "path": "moneymin/mobile/android/discovery.py",
+      "sha256": "cabedab6f8660d09481f9fa0dd75f874b77c7c151c945dc2c0026a55af409782"
+    },
+    {
+      "path": "moneymin/mobile/android/provider.py",
+      "sha256": "7ad8242db8eee566431ae5f34a86abb395748ac173f1abad4a8a2e92a5d32379"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/__init__.py",
+      "sha256": "cff4df4ffde82de78fa0ea6babace8ffb2a492b838e006a976ec304fbcf02ab6"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/contracts.py",
+      "sha256": "817c72ea38a4ef3ed365bf7d19313a5e09dd1b93f2f6e5e1167dbe58b3f8ee33"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/errors.py",
+      "sha256": "0312b759e5a901d5cb20f38938c54806b0f3032c63e0b49546e8f4e67e871600"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/exchange.py",
+      "sha256": "f1835e50f113ca4dc816f0171b8d5f7960bcae61b4ec17e99c8b134470f674c0"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/jwt.py",
+      "sha256": "406283dbfa108b39bad063f1f10474094123740c8166a78f7106c3c07c341969"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/persistence.py",
+      "sha256": "fb58d23c9da878a9fe60b09d5715c7ee544249ae459f0f8446931d1ee12d9a76"
+    },
+    {
+      "path": "moneymin/mobile/appcheck/runtime.py",
+      "sha256": "1e05638eb52df3ca2f04314af6d706a541955c15e97595ab2a4472b61b816e0c"
+    },
+    {
+      "path": "moneymin/mobile/configuration.py",
+      "sha256": "74cb68fc2307c743cc9ebf29ee241003c2915a5442a6077e20bdf04ce467f2ef"
+    },
+    {
+      "path": "moneymin/mobile/physical_binding.py",
+      "sha256": "e7e5094871dfc80974d4f298c2613138f073db2e21d7fc711fcecbc7ab5a8856"
+    },
+    {
+      "path": "moneymin/nymeria.py",
+      "sha256": "f720bde1d3c27bdd43e9101bce5822d2c1f6467738ce819221ef73b44172e86d"
+    },
+    {
+      "path": "moneymin/nymeria_library.py",
+      "sha256": "2e5ba113168a16e2ff95bd95bc35b6ce23ff67ddf86c8abb668475b9f78b187c"
+    },
+    {
+      "path": "moneymin/nymeria_vrs.py",
+      "sha256": "66e1597d2b1bd21d45f34fd94cba88957cc02c1cdd4d0e595c4c0e7d55b1b42f"
+    },
+    {
+      "path": "moneymin/org_policy.py",
+      "sha256": "0ee7f743fbc8fdf5f038b7d4e1e0b7dded947df8b5fb49fb809c2075c035b63e"
+    },
+    {
+      "path": "moneymin/provider_category_reviews.py",
+      "sha256": "f396ea0c0227f104d9641180352c5a447fda53ba79db7828ed3693b93c50fd55"
+    },
+    {
+      "path": "moneymin/resources/physical_capture_calib.json",
+      "sha256": "d6926ff5464e8c39c32c5dfa8d6e6311353b2080fd2f03c2dac3de75719d58d5"
+    },
+    {
+      "path": "moneymin/resources/provider_category_reviews.json",
+      "sha256": "063f839ec7e18089fe815a22d7fd7c234dac33c6cfb0862f92a3cf69297ce815"
+    },
+    {
+      "path": "moneymin/roglife_appcheck/MODULE.md",
+      "sha256": "c7d226d74d7abee9f26bdfa81badfb065f9804d24c4cac56dc928fba54b7ca27"
+    },
+    {
+      "path": "moneymin/roglife_appcheck/__init__.py",
+      "sha256": "b2b2214f2dcf832723153a65b48fed177f3e229ae25fba53322fef84fabe9f47"
+    },
+    {
+      "path": "moneymin/roglife_appcheck/capture.py",
+      "sha256": "0d1b328c782aa5d1b301dc6a6ab936a8cf4b606816263eb91d7ce50c3fc07d28"
+    },
+    {
+      "path": "moneymin/roglife_appcheck/device_info.py",
+      "sha256": "a7fb117d9eb2c08f44adbcdbc329ceee09f1c2bad243b7b44944a3313756cb62"
+    },
+    {
+      "path": "moneymin/roglife_appcheck/provider.py",
+      "sha256": "7668eebb8bc7a5635e224853d56614e599c9b03eb22c52e7df7e20d126467fba"
+    },
+    {
+      "path": "moneymin/samsung_uw_calibration.json",
+      "sha256": "f9bd797a69b4c262b419493bfd76d498f12f5861871602cd4f4cd2aed3e43916"
+    },
+    {
+      "path": "moneymin/sidecar.py",
+      "sha256": "76794d40fd76cd570ea00cee5ce7c96d770e1fc7e868e3380bb045f3f4c5b693"
+    },
+    {
+      "path": "moneymin/upload_types.py",
+      "sha256": "3bf429c1cb69f22d14ea7e1ecbbae2e1b64349bdcf40eaea63430aedbb5f8638"
+    },
+    {
+      "path": "moneymin/web/routes/accounts_domain/catalog.py",
+      "sha256": "39c110db80e397809d66a2c28ca6a236025e137ca3da467f1584a536361e314f"
+    },
+    {
+      "path": "moneymin/web/routes/campaign_admission.py",
+      "sha256": "c7f9303c9e7b4a45828ab6bcef4dba71db612372e2d1f33f4549978772bd9141"
+    },
+    {
+      "path": "moneymin/web/routes/integrations.py",
+      "sha256": "a0d79db73ce36c0992afbba775f7b1beef9815352a9b2364bfcd1e73af5eb506"
+    },
+    {
+      "path": "moneymin/web/routes/mobile.py",
+      "sha256": "554cf9d18b9e912ca09c59f7dceef96feca709a446ae1f71538fd35afabe99d0"
+    },
+    {
+      "path": "moneymin/web/routes/provider_catalogs.py",
+      "sha256": "eb80db112d76d73a283c46f391efb12af3bd121a4eed95cfa1c0995c12dcc0f4"
+    },
+    {
+      "path": "moneymin/web/runner.py",
+      "sha256": "baef893427cfa609a771565f9de13ce41b512383c6d1f0f2047bc31b406fb7a0"
+    },
+    {
+      "path": "moneymin/web/services/accounts_domain/persistence.py",
+      "sha256": "ad6417f3bdfed25f8d7802f21d3f86f97c129a84035cd3503db43739a8026beb"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "b51ff83e665c95da9462a5399e7824dfe55ddd76de81cd6ad0fc6f626b553053"
+    },
+    {
+      "path": "scripts/build_local.ps1",
+      "sha256": "8fc92fcd4fde3a84484632e88108d409df23f281e74f049e0bd7acf058e1e522"
+    },
+    {
+      "path": "scripts/run_tests.py",
+      "sha256": "13fa635ef1992e61b72c74da23276d24025bcdf2e1e910619a28d7726ac878a7"
+    },
+    {
+      "path": "scripts/start_local.ps1",
+      "sha256": "1bba996588627da7b66b2e9a52f33fb2838c996b3f83f4ffe71a3b0294c9feb0"
+    },
+    {
+      "path": "test/qt/android_device_panel.cpp",
+      "sha256": "eaf81811706dc5419700028dd4aeb0a510293b5ae76e85dcd30f3d4af61bd951"
+    },
+    {
+      "path": "test/qt/local_nymeria_qa.inc",
+      "sha256": "a40add269d32c2db62803a7b0fab89b9a6efb6f4db93ab0b64fd86ea7174a8cb"
+    },
+    {
+      "path": "test/test_account_providers.py",
+      "sha256": "a179870f3fca0e64de1bc33f7f6feb468e13c036e8cd6e11d5491e9a0bfd5d73"
+    },
+    {
+      "path": "test/test_appcheck.py",
+      "sha256": "a86d8c8bc8e264840e079dda618da6d6ffa3f6159fa330cbbd5920e0b3d8ddd9"
+    },
+    {
+      "path": "test/test_appcheck_device_cache.py",
+      "sha256": "cfa10d680425b1e684353e04b13a145519fa07fa5c8ce88f2fc0abb48817aee3"
+    },
+    {
+      "path": "test/test_appcheck_integration_api.py",
+      "sha256": "96c454f760119fd5997bc47334a3ca8bdb15c91228891ffd764aeaf9d8e97c16"
+    },
+    {
+      "path": "test/test_campaign_appcheck_admission.py",
+      "sha256": "d5e0666f42db25ac231220ed638c0db23943e4cd43ea35d9d9b58f6bce58219a"
+    },
+    {
+      "path": "test/test_campaign_auth_gate.py",
+      "sha256": "7eec3726ae36bc61e7e31855eb37636dd016fb26c168e2c152fe7de90caac5c1"
+    },
+    {
+      "path": "test/test_campaign_end_to_end.py",
+      "sha256": "1ec5ebe52b6259647820d47cf9311c41dbe8a0e7f712ff83da8c0f7ac7ebec66"
+    },
+    {
+      "path": "test/test_campaign_local_appcheck_retry.py",
+      "sha256": "882a847d3565e49824e662ab96d6ab1631ca54209c773bd018a545fbd2ff57c2"
+    },
+    {
+      "path": "test/test_campaign_local_request_evidence.py",
+      "sha256": "a69bab8ff9a6aaf2b5873878eaf22d689b22ea25d24ef87fc270ce6d67e3b5c8"
+    },
+    {
+      "path": "test/test_campaign_on_demand_flow.py",
+      "sha256": "22a3e870b3db4436492a5d6b5ee148eb85599d3d5d67ff0e5186282c7b4e90d7"
+    },
+    {
+      "path": "test/test_campaign_prefetch_cancel_drain.py",
+      "sha256": "ac7af69734b998dc55260e82dae0c3a1129045147ce4612cd86b0f5fa719cbe8"
+    },
+    {
+      "path": "test/test_campaign_provenance_disk_budget.py",
+      "sha256": "85a8ebe541d8b5943e9b1d1eb05eb8e2664524fb225175ce4352f40cf147292a"
+    },
+    {
+      "path": "test/test_campaign_timeline_preflight_stale.py",
+      "sha256": "a133751454b6380cdbec22cfa38eeeda14c9d9d38fed3f6cf9d3948f5256d1de"
+    },
+    {
+      "path": "test/test_concurrent_frame_timestamps.py",
+      "sha256": "6fc485d63ef91166e7f0464e75b3b4bdea9954082933def17a61643e8254b9f3"
+    },
+    {
+      "path": "test/test_ego4d_access_error_presentation.py",
+      "sha256": "78629e8df3e03fd8750eca2ca61734850bac9223b90b222531ac48229a41ed0a"
+    },
+    {
+      "path": "test/test_ego4d_measured_frames_contract.py",
+      "sha256": "770bd6691a358512b871bf9994c8f3fd487f3b36dba9f5571697cb759dd5a260"
+    },
+    {
+      "path": "test/test_mobile_modularization.py",
+      "sha256": "694c57b0d9978fca17ae94fdaf5e09257924bcc8a2a24d4db59bba7669973c6e"
+    },
+    {
+      "path": "test/test_offline_device_guard.py",
+      "sha256": "134d9cb77b25dd62424717edb459a10f29171b28e0a4c6206da6d090bec5c4ec"
+    },
+    {
+      "path": "test/test_physical_device_binding.py",
+      "sha256": "4e03777f8ee71bbd59c68c45043761a1e7c5e785b372a0b5ba64e331b3bc72b5"
+    },
+    {
+      "path": "test/test_provider_catalog_index.py",
+      "sha256": "a804baf49d7fcbba54c077df6dbbb7a9c4375c64505f40cafa15eb2709147a12"
+    },
+    {
+      "path": "test/test_provider_category_integration.py",
+      "sha256": "d00c7765e79970e154fe6578d5dfd9e5cc3e17935f6a5a238e2c1c26318adc00"
+    },
+    {
+      "path": "test/test_provider_category_reviews.py",
+      "sha256": "b48f27895a6fcc29677954229c8e10e2f009d4ee39d5351d97887b25178cb265"
+    },
+    {
+      "path": "test/test_runner_lifecycle.py",
+      "sha256": "55d655c2aec1d55186cc7eb2fc5db262d984305e23f1d07bd89f4dd92bfc9c1d"
+    },
+    {
+      "path": "test/test_upload_create_ambiguity.py",
+      "sha256": "71f500203066cfa466630fc10f15ca63d4a0465ccf8accef4b2499a9d060feb3"
+    }
+  ],
+  "hashes": "SHA-256 of transported working-tree bytes before Git line-ending normalization"
+}

@@ -9,6 +9,10 @@
 AppId={{58925A2D-36D4-4FE6-BC5E-B94327075C2F}
 AppName=Farry - QMoney
 AppVersion={#LauncherVersion}
+VersionInfoVersion={#LauncherVersion}.0
+VersionInfoTextVersion={#LauncherVersion}
+VersionInfoProductVersion={#LauncherVersion}.0
+VersionInfoProductTextVersion={#LauncherVersion}
 AppPublisher=Farry
 AppPublisherURL=https://lightcyan-wolf-956118.hostingersite.com/
 AppSupportURL=https://lightcyan-wolf-956118.hostingersite.com/

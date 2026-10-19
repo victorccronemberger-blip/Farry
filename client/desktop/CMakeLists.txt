@@ -55,6 +55,7 @@ set(QMONEY_MAIN_WINDOW_SOURCES
   src/MainWindowDashboard.cpp
   src/MainWindowMonitoring.cpp
   src/MainWindowIntegrations.cpp
+  src/MainWindowMobile.cpp
   src/MainWindowCampaigns.cpp
   src/AndroidDevicePanel.cpp
   src/AndroidDevicePanel.hpp

@@ -84,7 +84,7 @@ class CampaignErrorPresentationTests(unittest.TestCase):
         self.assertNotIn("preparar", message)
 
     def test_terminal_cleanup_error_never_promises_continuation_or_blames_accounts(self):
-        message = runner.friendly_campaign_error('Mídia reservada para envio anterior ou limpeza incompleta; a campanha não adquiriu outro vídeo.')
+        message = runner.friendly_campaign_error('Limpeza incompleta após falhas de remoção dos envios confirmados; a campanha não adquiriu outro vídeo.')
         self.assertIn('campanha parou', message)
         self.assertNotIn('seguirá', message)
         event = runner._public_event('item_incomplete', {'reason': 'media_retained_for_recovery',
@@ -92,7 +92,13 @@ class CampaignErrorPresentationTests(unittest.TestCase):
         self.assertEqual(event['stage'], 'Organização')
         self.assertIn('Envios confirmados', event['detail'])
         self.assertIn('4.00 GiB', event['detail'])
+        self.assertIn('campanha continuou', event['detail'])
         self.assertNotIn('contas não concluíram', event['detail'])
+        failed = runner._public_event('item_incomplete', {'reason': 'cleanup_failed',
+            'errors': ['fixture']})
+        self.assertEqual(failed['level'], 'error')
+        self.assertIn('Limpeza pendente', failed['title'])
+        self.assertIn('campanha parou', failed['detail'])
         stopped = runner._public_event('campaign_error', {'error': 'ffmpeg failed private-signed-url'})
         self.assertNotIn('seguirá', stopped['detail'])
         self.assertNotIn('private-signed-url', stopped['detail'])

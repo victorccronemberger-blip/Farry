@@ -44,7 +44,25 @@ def read_appcheck(serial: str, cfg: dict) -> dict | None:
     }
 
 
+def wake_device(serial: str) -> None:
+    """Acorda a tela e tenta dispensar o keyguard antes de reiniciar o Minute.
+
+    Com o aparelho em Dozing (tela apagada), o app não busca nem grava o token
+    de App Check e o XML não é recriado — a extração por ADB falha mesmo após
+    o cold start. Best-effort: nunca derruba a renovação.
+    """
+    try:
+        adb_shell(
+            serial,
+            "input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard",
+            timeout=12,
+        )
+    except Exception:
+        pass
+
+
 def restart_minute(serial: str, package: str) -> None:
+    wake_device(serial)
     adb_shell(serial, f"am force-stop {package}")
     time.sleep(2)
     adb_shell(serial, f"monkey -p {package} -c android.intent.category.LAUNCHER 1")
@@ -61,6 +79,7 @@ def refresh_appcheck(serial: str, cfg: dict, baseline_iat: int = 0) -> dict | No
         if token and token.get("iat") is not None and token["iat"] > baseline_iat:
             if token["left"] > min_left and token.get("provider") == "play_integrity":
                 return token
+        wake_device(serial)
         time.sleep(5)
     adb_shell(serial, f'su 0 rm -f "{xml_path}"')
     adb_shell(serial, f"su -c 'rm -f \"{xml_path}\"'")
@@ -70,17 +89,35 @@ def refresh_appcheck(serial: str, cfg: dict, baseline_iat: int = 0) -> dict | No
         token = read_appcheck(serial, cfg)
         if token and token.get("left", 0) > min_left:
             return token
+        wake_device(serial)
         time.sleep(5)
     return None
 
 
 def ensure_appcheck(serial: str, cfg: dict, force: bool = False) -> dict:
+    """Lê o JWT nas prefs do Minute; reinicia o app só com ``force=True``.
+
+    ``force=False`` (Atualizar / soft mint) só faz streaming ADB das
+    SharedPreferences. Se o token estiver ausente ou abaixo do piso, recusa na
+    hora para o caller escalar com ``force=True``. Antes, o soft caía em
+    ``refresh_appcheck`` (até ~6 min) e a UI ficava em Rechecagem pendente.
+    """
     min_left = int(cfg.get("min_appcheck_left_s", 600))
     token = read_appcheck(serial, cfg)
-    if token and not force and token.get("left", 0) >= min_left:
-        return token
+    if not force:
+        if token and token.get("left", 0) >= min_left:
+            return token
+        if token:
+            raise RuntimeError(
+                "App Check no aparelho abaixo do piso mínimo; "
+                "é necessário renovar com reinício do Minute."
+            )
+        raise RuntimeError(
+            "App Check ausente nas SharedPreferences do Minute; "
+            "abra/logue o Minute no celular ou renove com reinício."
+        )
     baseline = (token or {}).get("iat") or 0
-    fresh = refresh_appcheck(serial, cfg, baseline_iat=baseline if force else 0)
+    fresh = refresh_appcheck(serial, cfg, baseline_iat=baseline)
     if not fresh:
         raise RuntimeError(
             "Falha ao obter App Check do aparelho (Play Integrity). "

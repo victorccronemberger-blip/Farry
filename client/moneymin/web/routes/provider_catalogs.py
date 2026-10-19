@@ -35,9 +35,11 @@ def get_provider_catalog(_services):
         result, status = existing
         return _services.jsonify(result), status
     range_key = hashlib.sha256(f"{float(minimum)}|{float(maximum)}".encode("ascii")).hexdigest()[:16]
+    base_range_key = hashlib.sha256(b"60.0|1800.0").hexdigest()[:16]
     indexes = {"ego4d": (_services.config.DATA_DIR / "task_rank_cache.pkl").is_file(),
-               "nymeria": (_services.campaign.nymeria.data_root() / "_catalog" /
-                           f"task_selection_{range_key}.json").is_file()}
+               "nymeria": any((_services.campaign.nymeria.data_root() / "_catalog" /
+                           f"task_selection_{key}.json").is_file()
+                           for key in (range_key, base_range_key))}
     return _services.jsonify({"state": "idle", "indexes_found": indexes,
                              "message": "Preparar baixa as anotações necessárias, verifica as fontes e reutiliza os índices atuais. Vídeos e sensores são adquiridos durante a campanha."})
 

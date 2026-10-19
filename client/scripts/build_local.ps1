@@ -1,4 +1,9 @@
-param([switch]$SkipTests, [switch]$BuildOnly, [string]$ToolchainRoot = '')
+param(
+    [switch]$SkipTests,
+    [switch]$BuildOnly,
+    [string]$ToolchainRoot = '',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '1.0.63'
+)
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path "$PSScriptRoot\..").Path
 $WorkspaceRoot = (Resolve-Path "$ProjectRoot\..").Path
@@ -20,7 +25,7 @@ $Ninja = Join-Path $ToolchainRoot ".local-build-python\bin\ninja.exe"
 $BuildDir = Join-Path $ProjectRoot "build-modular2"
 $OutputDir = Join-Path $ProjectRoot "dist-local"
 $env:PATH = "$MingwBin;$QtRoot\bin;$env:PATH"
-$env:QMONEY_VERSION = "1.0.63"
+$env:QMONEY_VERSION = $Version
 & $CMake -S "$ProjectRoot\desktop" -B $BuildDir -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_PREFIX_PATH=$QtRoot" "-DCMAKE_MAKE_PROGRAM=$Ninja" -DQMONEY_BUILD_LOCAL_TESTS=ON
 if ($LASTEXITCODE -ne 0) { throw "Configuracao local falhou." }
 & $CMake --build $BuildDir --parallel 4

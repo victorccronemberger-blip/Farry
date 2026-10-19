@@ -1,32 +1,36 @@
 {
   "date": "2026-10-19",
-  "scope": "source synchronization and Windows distribution tooling; no release or application installation",
-  "source_files_transported": 100,
+  "source_of_truth": "local Finally - Copia folder",
+  "source_snapshot_commit": "252268f02350c590d7cd6fee6e7d6bec2fadaf91",
+  "source_files_verified": 645,
+  "scope": "current local application, isolated validation, Windows build and bundled distribution; customer installation untouched",
   "backend_full_suite": {
-    "status": "failed",
-    "passed": 3197,
-    "failed": 886,
-    "errors": 1,
-    "warnings": 1,
+    "status": "passed",
+    "passed": 3579,
+    "subtests_passed": 3851,
+    "failed": 0,
+    "errors": 0,
     "skipped": 0,
-    "subtests_passed": 3318,
-    "duration_seconds": 1127.08,
-    "summary": "886 failed, 3197 passed, 1 warning, 1 error, 3318 subtests passed in 1127.08s (0:18:47)",
-    "command": ".venv/Scripts/python.exe scripts/run_tests.py",
-    "log": "../../tmp/backend-validation.log",
-    "error_test": "test/test_upload_checkpoint_contention.py::UploadCheckpointContentionTests::test_large_journal_listing_waits_for_concurrent_checkpoint_barrier",
-    "causation": "not established; tests used isolated offline runner; no unrelated source fixes attempted"
+    "duration_seconds": 439.83,
+    "command": ".venv/Scripts/python.exe scripts/run_tests.py --pytest -q test --tb=short --junitxml=tmp/final-backend-r2.xml"
   },
-  "architecture": {
-    "passed": 20,
-    "subtests_passed": 35
+  "native_qt": {
+    "passed": 40,
+    "failed": 0,
+    "duration_seconds": 134.89,
+    "build": "build-modular2",
+    "qt": "6.8.3",
+    "mingw": "13.1.0",
+    "application_version": "1.0.65",
+    "installed_to_dist_local": false
   },
   "server": {
-    "tests_passed": 10,
+    "passed": 10,
     "build": "passed"
   },
   "publication_and_package_preflight": {
-    "tests_passed": 8,
+    "passed": 10,
+    "failed": 0,
     "skipped": 0
   },
   "launcher_policy": {
@@ -35,62 +39,110 @@
   "launcher_activation": {
     "assertions_passed": 16
   },
-  "new_application_build": {
-    "status": "blocked",
-    "reason": "Qt/MinGW/CMake SDK absent at configured locations",
-    "attempt": "scripts/build_local.ps1 -BuildOnly -SkipTests -Version 1.0.65"
+  "real_local_media_validation": {
+    "passed": 1,
+    "command": ".venv/Scripts/python.exe scripts/run_tests.py --pytest -q scripts/verify_real_media.py",
+    "customer_media_used": false
   },
-  "installer_candidate": {
-    "path": "work/installer-1.0.65-r2/FarrySetup.exe",
-    "version": "1.0.65",
-    "sha256": "4fe4a1955481ada3deae77b6f2a57c9386642a63732fc91080bed4ca5628ce2a",
-    "compiled": true,
-    "internal_signature_and_tamper_checks": "passed",
-    "windows_trust": "0x800B0109: private root not publicly trusted",
-    "downloads_current_public_application": "1.0.64"
-  },
-  "full_new_application_package": "not produced",
-  "clean_windows_installation": "not tested",
-  "live_published_release": {
-    "version": "1.0.64",
-    "manifest_signature_installer_hash_package_range": "passed"
-  },
-  "data_and_profiles": "preserved; tests isolated, no customer application launched",
-  "diff_check": "one inherited blank line at EOF in transported client/desktop/src/MainWindowMobile.cpp:92; preserved byte-for-byte",
-  "agents": [
-    {
-      "role": "initial advisor",
-      "model": "gpt-6-astra",
-      "reasoning_effort": "medium",
-      "calls": 1
-    },
-    {
-      "role": "completion advisor",
-      "model": "gpt-6-astra",
-      "reasoning_effort": "high",
-      "calls": 2
-    },
-    {
-      "role": "packaging executor",
-      "model": "gpt-6-luna",
-      "reasoning_effort": "high",
-      "turns": 2
-    }
+  "corrections": [
+    "Restore test environment after each test, including failures; explicit current App Check prerequisites in consumer fixtures; security guards retained",
+    "Keep provenance fingerprint memo private to each account delivery transaction",
+    "Preserve typed local identity refusal and durable no-request proof; prior uncertain CREATE remains blocked without journal mutation",
+    "Preserve Nymeria extraction and RGB scratch disk reservations with their separate diagnostics",
+    "Bounded parallel cold journal reads retain coherent generation lease, ordering and fail-closed validation of every record",
+    "Restore private build SDK and compile version resources without unrelated Qt include paths in windres",
+    "Bundle Android Platform-Tools and public default configuration without raw vendor credentials",
+    "Correct exclusive ZIP generation and test nested contents and refusal to overwrite"
   ],
-  "github_ci": {
-    "commit": "5d83e5f304bafe0772f68ec1f7a21262ed4e3034",
-    "status": "success",
-    "url": "https://github.com/victorccronemberger-blip/Farry/actions/runs/39194812714"
-  },
-  "pull_request": "https://github.com/victorccronemberger-blip/Farry/pull/1",
-  "backend_first_failure": {
-    "test": "test/test_account_issues.py::AccountDiagnosticEndpointsTests::test_valid_access_passes_without_issues",
-    "result": "expected ok=True, received False",
-    "diagnostic_run": {
-      "passed": 51,
-      "failed": 1,
-      "subtests_passed": 22
+  "windows_distribution": {
+    "version": "1.0.65",
+    "application_version": "1.0.65",
+    "directory": "dist/releases/1.0.65",
+    "package": {
+      "name": "Farry-windows-x64.zip",
+      "sha256": "97096f5b4cedb43ff7f783c2f98b193e0304368779eaab3e949a39b0456a5251",
+      "size": 729258411
     },
-    "causation": "not established; no business fix attempted"
+    "installer": {
+      "name": "FarrySetup.exe",
+      "sha256": "ee4a88ae7c523e51cfa7e9ae6180eb4aca3be348e0ab1952d9f1846ce6c7f593",
+      "size": 2172520
+    },
+    "manifest_signature_and_full_hashes": "passed",
+    "remote_version_preflight": "passed without publishing",
+    "bundled": [
+      "Qt and MinGW runtimes",
+      "Python and application dependencies",
+      "Playwright browsers",
+      "FFmpeg and FFprobe",
+      "UCRT redistributable DLLs",
+      "Android Platform-Tools 37.0.1"
+    ],
+    "signature": "existing internal Authenticode identity, verified integrity; WinVerifyTrust 0x800B0109 private root, not publicly trusted",
+    "signing_keys_regenerated_or_exported": false,
+    "final_zip_verification": {
+      "version": "1.0.65",
+      "real_windows_installation_tested": false,
+      "files": 10122,
+      "uncompressed_bytes": 1738050858,
+      "secret_material_scan": "passed",
+      "required_runtimes": "passed",
+      "mobile_default_allowlist": "passed",
+      "extracted_service": {
+        "passed": true,
+        "checks": [
+          "fresh_installation",
+          "restart_preserves_credentials",
+          "separate_customer_roots",
+          "local_api_authentication",
+          "empty_recovery",
+          "no_campaign_started",
+          "original_library_index_and_fts",
+          "original_duration_and_unknown_sensor_state",
+          "prepared_library_inventory",
+          "prepared_library_authentication",
+          "general_local_media_inventory",
+          "owned_process_tree_shutdown",
+          "nymeria_sdk_core_device_time",
+          "nymeria_metadata_only_not_ready",
+          "nymeria_source_catalog_and_packaged_current_tasks",
+          "nymeria_source_catalog_authentication",
+          "nymeria_manifest_import_without_external_python_or_sdk",
+          "full_campaign_reset_preserves_credentials_and_library",
+          "native_private_manifest_bootstrap_in_relocated_library",
+          "native_catalog_setup_acquires_no_vrs_or_imu",
+          "public_install_missing_ego_annotations_cannot_start",
+          "public_install_legacy_hours_do_not_gate_campaign"
+        ]
+      },
+      "private_qt_startup": {
+        "passed": true,
+        "exit_code": 8,
+        "scope": "QApplication and bundled platform plugin start before signature-file guard; no main window, shared instance, backend or real profile started"
+      },
+      "validation_path": "Windows system directories only; no developer runtime or SDK in PATH",
+      "package_sha256": "97096f5b4cedb43ff7f783c2f98b193e0304368779eaab3e949a39b0456a5251",
+      "package_bytes": 729258411
+    }
+  },
+  "limits": [
+    "No clean Windows 10 or Windows 11 virtual machine installation or full GUI acceptance performed",
+    ".NET Framework 4.8 remains an installer prerequisite; USB drivers and phone authorization remain machine-specific",
+    "No real provider/account/phone/upload/withdrawal acceptance performed; no real ADB command executed",
+    "Installer downloads the published application bundle; version 1.0.65 must be published to activate that channel"
+  ],
+  "publication": {
+    "published": false,
+    "live_version": "1.0.64",
+    "pending": "explicit release/channel activation authorization required by AGENTS.md section 7"
+  },
+  "data_and_profiles": "preserved; tests use temporary roots; existing app not started, stopped or installed",
+  "pull_request": "https://github.com/victorccronemberger-blip/Farry/pull/1",
+  "review": {
+    "advisor": "gpt-6-astra high",
+    "bounded_executors": "gpt-6-luna high",
+    "initial_advisor": "gpt-6-astra medium",
+    "main_model_settings": "unchanged",
+    "material_findings": "Final extracted artifact validation and prior uncertain CREATE regression added; clean Windows acceptance and publication authorization remain explicit limits"
   }
 }

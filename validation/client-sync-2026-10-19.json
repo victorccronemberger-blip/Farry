@@ -5,17 +5,9 @@
   "comparison": "all listed source files match client snapshot after CRLF normalization",
   "excluded": [
     ".github/workflows/release.yml",
-    "AUDITORIA_MINUTE_1_29.md",
-    "__cmake_systeminformation/CMakeCache.txt",
-    "__cmake_systeminformation/CMakeFiles/4.4.4/CMakeSystem.cmake",
-    "__cmake_systeminformation/CMakeFiles/CMakeConfigureLog.yaml",
-    "__cmake_systeminformation/CMakeFiles/cmake.check_cache",
-    "__cmake_systeminformation/CMakeLists.txt"
+    "AUDITORIA_MINUTE_1_29.md"
   ],
-  "changed_files_this_pass": [
-    "test/test_campaign_org_guard.py",
-    "test/test_upload_create_adapter_contract.py"
-  ],
+  "changed_files_this_pass": [],
   "source_files": [
     {
       "path": ".env.example",

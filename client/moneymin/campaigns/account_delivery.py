@@ -17,6 +17,10 @@ def upload_to_account(_services, item: dict[str, Any], account: AccountSpec,
     session_id é por conta (senão o Azure colide a chave). O arquivo de vídeo
     é o `_native.mp4` compartilhado, salvo `unique_video=True`.
     """
+    # Provenance revalidation may attach a private fingerprint memo to its
+    # input. Keep that transaction-local cache off the prepared item owned by
+    # the caller and shared with other account workers.
+    item = dict(item)
     result: dict[str, Any] = {"email": account.email, "ok": False}
     if item.get("requires_audio") is True:
         # Probe the delivered file, not a cached claim. Nymeria's RGB extractor

@@ -440,6 +440,24 @@ class NymeriaLibraryTests(unittest.TestCase):
         self.assertFalse((self.root / "sequence_one/recording_head/data/data.vrs").exists())
         self.assertFalse((self.root / "_catalog/archives/sequence_one/timesync_and_imu.zip").exists())
 
+    def test_batch_space_quote_reports_rgb_scratch_shortfall_after_sources_and_extraction_fit(self):
+        self.publish()
+        library.sync_catalog(self.root)
+        sid = "sequence_one"
+        source_bytes = library._sequence_item(
+            self.root, sid, self.catalog["sequences"][sid])["download_bytes"]
+        extracted_bytes = 100
+        scratch_bytes = 200
+        with patch.object(library, "_extraction_bytes", return_value=extracted_bytes), \
+             patch.object(library, "_rgb_scratch_bytes_for_seconds", return_value=scratch_bytes), \
+             patch.object(library.shutil, "disk_usage", return_value=type("Disk", (), {
+                 "free": source_bytes + extracted_bytes + scratch_bytes - 1})()), \
+             self.assertRaises(library.NymeriaLibraryError) as raised:
+            library.acquire_sequences([sid], self.root, min_free_bytes=0)
+        self.assertEqual(raised.exception.code, "rgb_scratch_space_insufficient")
+        self.assertFalse((self.root / sid / "recording_head/data/data.vrs").exists())
+        self.assertFalse((self.root / "_catalog/archives" / sid / "timesync_and_imu.zip").exists())
+
     def test_invalid_remote_zip_index_exposes_safe_failure_without_starting_large_asset(self):
         library.sync_catalog(self.root)
         with patch.object(library.requests, "Session", side_effect=lambda: Session(

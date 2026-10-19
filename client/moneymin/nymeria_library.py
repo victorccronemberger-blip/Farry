@@ -904,6 +904,11 @@ def acquire_sequences(seq_ids, root=None, progress=None, should_stop=None, min_f
         # Also reserve temporary PNG/MP4 volume for a later prepare window.
         rgb_scratch = _rgb_scratch_bytes_for_seconds(_ACQUIRE_RGB_SCRATCH_SECONDS)
         free = summary(base)["disk_free_bytes"]
+        if free < required + extraction + min_free_bytes:
+            raise NymeriaLibraryError(
+                "Espaço insuficiente para todas as fontes, todos os IMUs extraídos "
+                "e a reserva livre. Nenhum VRS grande foi baixado.",
+                "extraction_space_insufficient")
         if free < required + extraction + rgb_scratch + min_free_bytes:
             raise NymeriaLibraryError(
                 "Espaço insuficiente para todas as fontes, todos os IMUs extraídos, "

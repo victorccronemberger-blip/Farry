@@ -620,6 +620,20 @@ def _upload_single_chunk(_services,
                     if getattr(exc, "remote_effect_possible", False):
                         raise
                     code = getattr(exc, "account_issue_code", None)
+                    if code == "identity":
+                        # The identity gate has a stable typed contract for its
+                        # caller. This adapter reports a known local refusal, so
+                        # retain the monotonic attempt marker, but persist proof
+                        # that no request was sent before preserving the error.
+                        _checkpoint(
+                            _services.STATE_FAILED, "create",
+                            attempts=create_progress_attempt,
+                            account_issue_code=code,
+                            authentication_required=True,
+                            request_not_sent=True,
+                            error="Identidade local incompatível antes do CREATE.",
+                        )
+                        raise
                     http_status = getattr(exc, "http_status", None)
                     blocked = "app_check" if code == "app_check" else None
                     if not isinstance(http_status, int):

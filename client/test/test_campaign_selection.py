@@ -12,6 +12,7 @@ from moneymin import campaign
 from moneymin.campaign_types import AccountSpec, CampaignConfig, TaskSpec
 from moneymin.web.runner import CampaignRunner, _public_event
 from moneymin.web.server import _campaign_log_view
+from auth_fixtures import configure_app_check
 
 
 class CampaignSelectionTests(unittest.TestCase):
@@ -91,6 +92,7 @@ class CampaignSelectionTests(unittest.TestCase):
         self.assertEqual(len([issue for issue in result.issues if issue["kind"] == "clip_prepare_done"]), 2)
 
     def setUp(self):
+        configure_app_check(self)
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         self.tmp = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))

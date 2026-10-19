@@ -67,6 +67,19 @@ set(QMONEY_MAIN_WINDOW_SOURCES
   src/MainWindowLibrary.cpp
 )
 
+set(QMONEY_WINDOWS_RESOURCES)
+if(WIN32)
+  configure_file(resources/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
+  # Icon/version resources need no Qt headers or C++ definitions. Compile them
+  # independently so windres does not receive Qt include paths with spaces.
+  add_library(qmoney_windows_resources OBJECT
+    resources/qmoney.rc ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    ${QMONEY_EMBEDDED_SERVICE_RESOURCE})
+  set_target_properties(qmoney_windows_resources PROPERTIES
+    AUTOMOC OFF AUTOUIC OFF AUTORCC OFF LINKER_LANGUAGE CXX)
+  set(QMONEY_WINDOWS_RESOURCES $<TARGET_OBJECTS:qmoney_windows_resources>)
+endif()
+
 qt_add_executable(QMoney WIN32
   src/main.cpp
   src/ApiClient.hpp
@@ -79,13 +92,13 @@ qt_add_executable(QMoney WIN32
   src/UpdateManager.hpp
   src/UpdateManager.cpp
   resources/qmoney.qrc
-  resources/qmoney.rc
-  ${QMONEY_EMBEDDED_SERVICE_RESOURCE}
+  ${QMONEY_WINDOWS_RESOURCES}
 )
 
 add_executable(QMoneyUpdater WIN32
   src/updater_main.cpp
   resources/qmoney.rc
+  $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_BINARY_DIR}/version.rc>
 )
 if(MINGW)
   target_link_options(QMoneyUpdater PRIVATE -static -static-libgcc -static-libstdc++)

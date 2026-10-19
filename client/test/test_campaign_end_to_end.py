@@ -550,6 +550,19 @@ class CampaignEndToEndTests(unittest.TestCase):
                           "serial": "fixture-serial"}))
         self.stack.enter_context(patch(
             "moneymin.roglife_appcheck.provider.device_mode_enabled", return_value=True))
+        # Keep the physical-device gate enabled and satisfy it with an inert
+        # identity snapshot; this test does not need a connected phone.
+        self.stack.enter_context(patch(
+            "moneymin.roglife_appcheck.provider.physical_identity",
+            return_value={
+                "device_id": "android.ssaid:fixture-device-id",
+                "model": "fixture-model",
+                "app_version": "1.0-fixture",
+                "sdk_int": 34,
+                "uptime_ns": 1_000_000_000,
+                "network_type": "wifi",
+                "network_meta": {"type": "wifi"},
+            }))
         # Sem espera de captura, perfil, download ou tráfego real neste teste de orquestração.
         self.stack.enter_context(patch.object(runner, "run_campaign", side_effect=lambda cfg, **kw: campaign.run_campaign(
             replace(cfg, realistic_timeline=False, allow_new_accounts=True, shuffle_schedule=False,

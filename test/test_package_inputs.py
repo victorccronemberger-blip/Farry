@@ -7,10 +7,31 @@ import subprocess
 import tempfile
 import time
 import unittest
+import zipfile
+import sys
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "package-client.ps1"
 POWERSHELL = shutil.which("pwsh.exe") or shutil.which("powershell.exe")
+
+
+class PackageArchiveTests(unittest.TestCase):
+    def test_embedded_zipper_preserves_nested_files_and_refuses_overwrite(self):
+        script = SCRIPT.read_text(encoding="utf-8-sig")
+        zipper = script.split("$zipper = @'\n", 1)[1].split("\n'@", 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "app"
+            (root / "runtime").mkdir(parents=True)
+            (root / "runtime/service.bin").write_bytes(b"service-fixture")
+            archive = Path(temporary) / "package.zip"
+            command = [sys.executable, "-c", zipper, str(root), str(archive)]
+            subprocess.run(command, check=True, capture_output=True)
+            with zipfile.ZipFile(archive) as package:
+                self.assertEqual(package.namelist(), ["runtime/service.bin"])
+                self.assertEqual(package.read("runtime/service.bin"), b"service-fixture")
+            original = archive.read_bytes()
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertEqual(archive.read_bytes(), original)
 
 
 @unittest.skipUnless(os.name == "nt" and POWERSHELL, "Windows PowerShell is required for package preflight tests")
@@ -67,6 +88,11 @@ class PackageClientPreflightTests(unittest.TestCase):
             "tools/ffmpeg/ffmpeg.exe",
             "tools/ffmpeg/ffprobe.exe",
             "tools/ms-playwright/browsers.json",
+            "tools/platform-tools/adb.exe",
+            "tools/platform-tools/AdbWinApi.dll",
+            "tools/platform-tools/AdbWinUsbApi.dll",
+            "tools/platform-tools/NOTICE.txt",
+            "tools/platform-tools/source.properties",
         ):
             path = self.project / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,6 +164,15 @@ class PackageClientPreflightTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("QMoneyUpdater.exe", result.stdout + result.stderr)
+        self.assert_preflight_left_artifacts_untouched()
+
+    def test_missing_platform_tools_dll_fails_before_writing(self):
+        (self.project / "tools/platform-tools/AdbWinApi.dll").unlink()
+
+        result = self.run_package()
+
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("AdbWinApi.dll", result.stdout + result.stderr)
         self.assert_preflight_left_artifacts_untouched()
 
     def test_wrong_compiled_gui_version_fails_before_writing(self):

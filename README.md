@@ -79,7 +79,9 @@ Use uma versão crescente para cada pacote novo. Não altere os artefatos de uma
 
 ### Atualizar o aplicativo com suas dependências
 
-A distribuição Windows usa um pacote próprio com Qt, Python, bibliotecas do motor, Chromium e FFmpeg/FFprobe. O instalador e o launcher existentes controlam instalação e atualização por versão. Docker não é necessário para esse fluxo. Isso não elimina requisitos do Windows, drivers de dispositivos nem o SDK Platform-Tools/ADB quando a funcionalidade móvel for usada; o instalador atual também verifica a presença do .NET Framework 4.8.
+A distribuição Windows usa um pacote próprio com Qt, Python, bibliotecas do motor, Chromium, FFmpeg/FFprobe e Android Platform-Tools/ADB. O instalador e o launcher existentes controlam instalação e atualização por versão. Docker não é necessário para esse fluxo. O cliente não precisa instalar Python, Qt, FFmpeg ou ADB separadamente. O Windows e o .NET Framework 4.8 continuam sendo requisitos; funcionalidades USB também dependem do driver e da autorização do celular.
+
+A preparação 1.0.65 compila o aplicativo desta cópia local, com versão 1.0.65 nos executáveis, em vez de reutilizar o aplicativo 1.0.63 da distribuição anterior. O pacote inclui somente a configuração móvel padrão pública; credenciais, tokens, dispositivos e dados deste computador ficam fora da distribuição. Consulte `validation/windows-bundled-2026-10-19.json` para os resultados e o estado de publicação verificados.
 
 Para uma nova versão do aplicativo, primeiro valide a cópia Finally pelo runner isolado e compile apenas em `build-modular2`. Exemplo de preparação da próxima versão, **ainda sem publicação**:
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+_PARALLEL_JOURNAL_MIN_FILES = 1024
+
 @dataclass
 class JournalServices:
     JsonStateError: Any
@@ -324,6 +326,14 @@ def list_sidecars(_services, state: str | None = None) -> list[dict[str, Any]]:
     from ..media_lifecycle import media_state_lease
     from ..operation_lease import OperationLeaseError
     out: list[dict[str, Any]] = []
+    def collect(path, data):
+        if not isinstance(data, dict):
+            raise ValueError("invalid journal format")
+        expected_name = _services._sidecar_filename(data.get("session_id"), data.get("chunk_index", 0))
+        if path.name != expected_name:
+            raise ValueError("invalid journal identity")
+        if state is None or data.get("state") == state:
+            out.append(data)
     try:
         # Read one coherent generation while writers/cleanup hold the same
         # local barrier. Large journal stores and concurrent account workers
@@ -332,15 +342,18 @@ def list_sidecars(_services, state: str | None = None) -> list[dict[str, Any]]:
         with media_state_lease(wait=True, timeout_s=30.0):
             # iterdir reports directory I/O failures; glob can silently omit them.
             paths = sorted(path for path in _services.sidecars_dir().iterdir() if path.name.lower().endswith(".json"))
-            for path in paths:
-                data = _services._read_sidecar_file(path)
-                if not isinstance(data, dict):
-                    raise ValueError("invalid journal format")
-                expected_name = _services._sidecar_filename(data.get("session_id"), data.get("chunk_index", 0))
-                if path.name != expected_name:
-                    raise ValueError("invalid journal identity")
-                if state is None or data.get("state") == state:
-                    out.append(data)
+            if len(paths) >= _PARALLEL_JOURNAL_MIN_FILES:
+                from concurrent.futures import ThreadPoolExecutor
+                # Cold Windows file opens can dominate large stores. Workers
+                # decode independent files; this coordinator keeps the same
+                # generation lease until every worker has closed its files,
+                # including when decoding or validation raises.
+                with ThreadPoolExecutor(max_workers=8, thread_name_prefix="journal-read") as pool:
+                    for path, data in zip(paths, pool.map(_services._read_sidecar_file, paths)):
+                        collect(path, data)
+            else:
+                for path in paths:
+                    collect(path, _services._read_sidecar_file(path))
     except OperationLeaseError as exc:
         if exc.busy:
             raise _services.UploadError("Os registros de envio estão ocupados; tente novamente.",

@@ -25,6 +25,7 @@ $updater = Join-Path $BuildDirectory 'QMoneyUpdater.exe'
 $windeployqt = Join-Path $QtRoot 'bin\windeployqt.exe'
 $ffmpegRoot = Join-Path $ProjectRoot 'tools\ffmpeg'
 $browserRoot = Join-Path $ProjectRoot 'tools\ms-playwright'
+$platformToolsRoot = Join-Path $ProjectRoot 'tools\platform-tools'
 $browserPartsScript = Join-Path $ProjectRoot 'scripts\browser_parts.ps1'
 $verifyScript = Join-Path $ProjectRoot 'scripts\verify_packaged_service.py'
 $signScript = Join-Path $PSScriptRoot 'sign-internal.ps1'
@@ -37,6 +38,11 @@ foreach ($requiredFile in @(
     (Join-Path $ProjectRoot 'desktop\resources\qmoney.ico'),
     (Join-Path $ProjectRoot 'moneymin\samsung_uw_calibration.json'),
     (Join-Path $ProjectRoot 'moneymin\minute_task_names.json'),
+    (Join-Path $platformToolsRoot 'adb.exe'),
+    (Join-Path $platformToolsRoot 'AdbWinApi.dll'),
+    (Join-Path $platformToolsRoot 'AdbWinUsbApi.dll'),
+    (Join-Path $platformToolsRoot 'NOTICE.txt'),
+    (Join-Path $platformToolsRoot 'source.properties'),
     $verifyScript, $browserPartsScript, $signScript, $releaseSigner,
     (Join-Path $repo 'app.js'), (Join-Path $repo 'secrets\update-private.pem'),
     (Join-Path $PSScriptRoot 'check-release.mjs')
@@ -52,6 +58,7 @@ if (-not (Test-Path -LiteralPath $dependencyRoot -PathType Container)) {
 }
 if (-not (Test-Path -LiteralPath $ffmpegRoot -PathType Container)) { throw "FFmpeg ausente: $ffmpegRoot" }
 if (-not (Test-Path -LiteralPath $browserRoot -PathType Container)) { throw "Navegadores Playwright ausentes: $browserRoot" }
+if (-not (Test-Path -LiteralPath $platformToolsRoot -PathType Container)) { throw "Android Platform-Tools ausentes: $platformToolsRoot" }
 $output = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else {
     Join-Path $repo ('dist\releases\' + $Version)
 }
@@ -156,6 +163,14 @@ $service = Join-Path $work 'service\QMoneyService'
 if (-not (Test-Path -LiteralPath $service -PathType Container)) { throw 'PyInstaller não criou QMoneyService.' }
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 Get-ChildItem -LiteralPath $service | Copy-Item -Destination $runtime -Recurse
+$platformToolsTarget = Join-Path $runtime 'tools\platform-tools'
+New-Item -ItemType Directory -Force -Path $platformToolsTarget | Out-Null
+Get-ChildItem -LiteralPath $platformToolsRoot -Force | Copy-Item -Destination $platformToolsTarget -Recurse
+foreach ($requiredTool in @('adb.exe', 'AdbWinApi.dll', 'AdbWinUsbApi.dll', 'NOTICE.txt', 'source.properties')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $platformToolsTarget $requiredTool) -PathType Leaf)) {
+        throw "Android Platform-Tools incompletos após a cópia: $requiredTool"
+    }
+}
 $mediaBin = Join-Path $runtime 'tools\ffmpeg\bin'
 New-Item -ItemType Directory -Force -Path $mediaBin | Out-Null
 Copy-Item -LiteralPath $ffmpeg.FullName -Destination $mediaBin
@@ -183,8 +198,8 @@ $zipper = @'
 import pathlib,sys,zipfile
 root=pathlib.Path(sys.argv[1])
 with zipfile.ZipFile(sys.argv[2], 'x', zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-for path in sorted(root.rglob('*')):
-    if path.is_file(): archive.write(path, path.relative_to(root).as_posix())
+    for path in sorted(root.rglob('*')):
+        if path.is_file(): archive.write(path, path.relative_to(root).as_posix())
 '@
 & $python -c $zipper $package $packageZip
 if ($LASTEXITCODE -ne 0) { throw 'Compressão da distribuição Farry falhou.' }

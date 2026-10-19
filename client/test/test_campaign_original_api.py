@@ -17,6 +17,7 @@ from moneymin import appcheck, config, minute_api, sidecar
 from moneymin.service_policy import RecordingPolicy
 from moneymin.web import server
 from test_original_capture_workflow import fixture_pair, fixture_probe, EPOCH, OWNER, ORG, TASK
+from auth_fixtures import configure_app_check
 
 PREFLIGHT = '/api/campaigns/original/preflight'
 START = '/api/campaigns/original'
@@ -46,6 +47,7 @@ class OriginalCampaignApiTests(unittest.TestCase):
         self.runner.start.assert_called_once()
 
     def setUp(self):
+        configure_app_check(self, now=EPOCH)
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory(prefix='qmoney-original-api-fixture-')))

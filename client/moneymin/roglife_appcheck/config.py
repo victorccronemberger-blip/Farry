@@ -8,12 +8,17 @@ from pathlib import Path
 # Finally/moneymin/roglife_appcheck -> Finally/
 _FINALLY_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_CONFIG = _FINALLY_ROOT / "vendor" / "roglife" / "config.json"
+_BUNDLED_DEFAULT_CONFIG = Path(__file__).with_name("default_config.json")
 
 
 def config_path() -> Path:
     override = os.environ.get("QMONEY_ROGLIFE_CONFIG", "").strip()
     if override:
         return Path(override).expanduser().resolve()
+    if _DEFAULT_CONFIG.is_file():
+        return _DEFAULT_CONFIG
+    if _BUNDLED_DEFAULT_CONFIG.is_file():
+        return _BUNDLED_DEFAULT_CONFIG
     return _DEFAULT_CONFIG
 
 
@@ -22,7 +27,8 @@ def load_config() -> dict:
     if not path.exists():
         raise FileNotFoundError(
             f"Config RogLife ausente: {path}. "
-            "Copie vendor/roglife/config.json ou defina QMONEY_ROGLIFE_CONFIG."
+            "Copie vendor/roglife/config.json, forneça a configuração incluída "
+            "ou defina QMONEY_ROGLIFE_CONFIG."
         )
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):

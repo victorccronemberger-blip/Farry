@@ -2,6 +2,8 @@
 
 Servidor de versões e distribuição Windows do QMoney. Substitui integralmente o modelo Callout.
 
+Versão pública atual: **1.0.65**, tanto do aplicativo quanto da distribuição, compilada da cópia local Finally e publicada em 19/10/2026. O [site de instalação e atualizações](https://lightcyan-wolf-956118.hostingersite.com/) oferece o instalador e o pacote assinado dessa versão. Consulte os resultados e limites em `validation/windows-bundled-2026-10-19.json`.
+
 ## Estrutura
 
 - `server.js`, `public/`: servidor Express e página de atualizações.

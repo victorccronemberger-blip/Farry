@@ -129,12 +129,50 @@
     "No clean Windows 10 or Windows 11 virtual machine installation or full GUI acceptance performed",
     ".NET Framework 4.8 remains an installer prerequisite; USB drivers and phone authorization remain machine-specific",
     "No real provider/account/phone/upload/withdrawal acceptance performed; no real ADB command executed",
-    "Installer downloads the published application bundle; version 1.0.65 must be published to activate that channel"
+    "Installer downloads the signed package from the public channel; the initial installation needs network access"
   ],
   "publication": {
-    "published": false,
-    "live_version": "1.0.64",
-    "pending": "explicit release/channel activation authorization required by AGENTS.md section 7"
+    "published": true,
+    "live_version": "1.0.65",
+    "release_id": 417061401,
+    "url": "https://github.com/victorccronemberger-blip/Farry/releases/tag/v1.0.65",
+    "published_at": "2026-10-19T08:31:42Z",
+    "target_commit": "bda94d20033e12c26181048311ef043f76d3625e",
+    "tag_commit_verified": true,
+    "authorization": "Explicit user authorization to publish version 1.0.65 and activate the public installer/update channel",
+    "remote_assets": [
+      {
+        "name": "Farry-windows-x64.zip",
+        "size": 729258411,
+        "digest": "sha256:97096f5b4cedb43ff7f783c2f98b193e0304368779eaab3e949a39b0456a5251"
+      },
+      {
+        "name": "FarrySetup.exe",
+        "size": 2172520,
+        "digest": "sha256:ee4a88ae7c523e51cfa7e9ae6180eb4aca3be348e0ab1952d9f1846ce6c7f593"
+      },
+      {
+        "name": "release.json",
+        "size": 557,
+        "digest": "sha256:394dd2aa14c77adbb68686f8f90495a70a73cb5db069926d2d91c264226ae8b0"
+      },
+      {
+        "name": "release.json.sig",
+        "size": 512,
+        "digest": "sha256:dd36fdea52404cc1e5f7e10a7a05175bdd74ea0106b8895a880d163880f2689c"
+      }
+    ],
+    "live_site": {
+      "base_url": "https://lightcyan-wolf-956118.hostingersite.com/",
+      "application_version": "1.0.65",
+      "distribution_version": "1.0.65",
+      "manifest_signature": "passed",
+      "installer_full_hash": "passed",
+      "package_download": "passed",
+      "complete_package_hash": "passed",
+      "complete_package_bytes": 729258411,
+      "executables_started": false
+    }
   },
   "data_and_profiles": "preserved; tests use temporary roots; existing app not started, stopped or installed",
   "pull_request": "https://github.com/victorccronemberger-blip/Farry/pull/1",
@@ -143,6 +181,6 @@
     "bounded_executors": "gpt-6-luna high",
     "initial_advisor": "gpt-6-astra medium",
     "main_model_settings": "unchanged",
-    "material_findings": "Final extracted artifact validation and prior uncertain CREATE regression added; clean Windows acceptance and publication authorization remain explicit limits"
+    "material_findings": "Final extracted artifact validation and prior uncertain CREATE regression added; clean Windows acceptance remains an explicit limit; publication authorized and final public downloads verified"
   }
 }
